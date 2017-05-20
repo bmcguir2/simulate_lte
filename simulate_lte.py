@@ -58,6 +58,8 @@ first_run = True
 
 GHz = False
 
+quietflag = False #turn on to suppress warnings about how long the simulation will take.
+
 rms = float('-inf') #rms noise.  the simulation won't simulate any lines 10x smaller than this value.
 
 thermal = float('inf') #initial default cutoff for optically-thick lines (i.e. don't touch them unless thermal is modified.)
@@ -796,14 +798,42 @@ def sim_gaussian(int_sim,freq,linewidth):
 	
 		telapsed = tm.time() - start_time
 		
-		if telapsed > 5 and alerted == False:
+		if telapsed > 5 and alerted == False and quietflag == False:
 		
 			tstep = telapsed/x
 			
 			ttotal = (tstep * int_sim.shape[0])/60
 		
-			print('You have asked for a computationally-expensive simulation.  Either wait for it to finish, or narrow up your frequency range by setting ll or ul.')
-			print('A (probably very poor) estimation of the time remaining is: {:.2f} minutes.' .format(ttotal))
+			print('\nYou have asked for a computationally-expensive simulation.  Either wait for it to finish, narrow up your frequency range by setting ll or ul, or reduce the resolution.  Use quiet() to suppress further messages.\n')
+			
+			if ttotal < 0.2:
+			
+				print('Your simulation will probably finish in: a few seconds.')
+				
+			elif ttotal < 1.0:
+			
+				print('Your simulation will probably finish in: a minute or three.')
+				
+			elif ttotal < 2.0:
+			
+				print('Your simulation will probably finish in: a few minutes.')		
+				
+			elif ttotal < 5.0:
+			
+				print('Your simulation will probably finish in: go get a cup of coffee.')
+				
+			elif ttotal < 10.0:
+			
+				print('Your simulation will probably finish in: work on something else for a while.')
+				
+			elif ttotal < 30.0:
+			
+				print('Your simulation will probably finish in: watch an episode or two on Netflix.')	
+				
+			else:
+			
+				print('Your simulation will probably finish in: press ctrl+c and set some limits or lower the resolution.')																			
+																						
 			
 			alerted = True 
 	
@@ -879,10 +909,12 @@ def run_sim(freq,intensity,T,dV,C):
 	Runs a full simulation accounting for the currently-active T, dV, S, and vlsr values, as well as any thermal cutoff for optically-thick lines
 	'''
 	
+	np.seterr(under='ignore')
+	
 	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file)
 
 	numerator = (C)*(8*3.14159**3)*(frequency*1E6)*(sijmu)*(1-((exp((h*frequency*1E6)/(k*T))-1)/(exp((h*frequency*1E6)/(k*Tbg))-1)))*eta
-
+	
 	denominator = 1.06447*dV*Q*(exp(eupper/(kcm*T)))*(3*k)*1E48
 
 	int_temp = numerator/denominator
@@ -1513,6 +1545,7 @@ def load_mol(x,format='spcat'):
 	
 	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,300,catalog_file)
 	
+	print('\nWarning: Accurate absolute brightness temperatures depend on having a complete spectral catalog to calcualte  an accurate partition function.  Below is the value that is calcualted at 300 K from the current catalog.  If this is not accurate, the results need to be adjusted accordingly.\n')
 	print('Q(300) = {:.0f}' .format(Q))
 	
 	sijmu = (exp(np.float64(-(elower/0.695)/300)) - exp(np.float64(-(eupper/0.695)/300)))**(-1) * ((10**logint)/frequency) * ((4.16231*10**(-5))**(-1)) * Q
@@ -1524,13 +1557,13 @@ def load_mol(x,format='spcat'):
 	if first_run == True:
 		make_plot()
 		first_run = False
-		return True
+		return 
 	else:
 		try:
 			plt.get_fignums()[0]
 		except:	
 			make_plot()
-			return True
+			return 
 		
 	#if there is a plot open, we just update the current simulation
 	
@@ -2112,6 +2145,20 @@ def init_source(source,size=0.0):
 		source_size = size
 
 	return
+
+#quiet suppresses warnings about computational time.  Can be used iteratively to turn it on and off.
+
+def quiet():
+
+	global quietflag
+
+	if quietflag == False:
+	
+		quietflag = True
+		
+	elif quietflag == True:
+	
+		quietflag = False
 
 #############################################################
 #							Classes for Storing Results		#
