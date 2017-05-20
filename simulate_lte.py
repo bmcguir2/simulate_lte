@@ -90,7 +90,7 @@ gauss = True #toggle for simulating Gaussians or a stick spectrum.  Default is T
 
 #dish_size = 10.0 #dish diamater of a single dish telescope in meters.  Set this option manually, with configure_telescope(), or with init_telescope().
 
-eta = 0.7 #beam efficiency of the telescope.  Set this option manually, with configure_telescope(), or with init_telescope(). 
+eta = 1.0 #beam efficiency of the telescope.  Set this option manually, with configure_telescope(), or with init_telescope(). 
 
 #units = 'K' #either 'K' or 'Jy/beam'.  Set this option manually, with configure_telescope(), or with init_telescope().
 
