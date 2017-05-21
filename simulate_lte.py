@@ -910,6 +910,7 @@ def run_sim(freq,intensity,T,dV,C):
 	'''
 	
 	np.seterr(under='ignore')
+	np.seterr(over='ignore')
 	
 	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file)
 
@@ -1346,7 +1347,7 @@ def store(x=None):
 	
 		x = '{}' .format(catalog_file.split('.')[0]) 
 	
-	sim[x] = Molecule(x,catalog_file,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,S,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim)
+	sim[x] = Molecule(x,catalog_file,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim)
 	
 	if auto_update == True:
 	
@@ -1658,7 +1659,7 @@ def save_results(x):
 	
 		for molecule in sim:
 		
-			output.write('{}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\n' .format(sim[molecule].name,sim[molecule].T,sim[molecule].S,sim[molecule].dV,sim[molecule].vlsr,sim[molecule].CT,sim[molecule].catalog_file))
+			output.write('{}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\n' .format(sim[molecule].name,sim[molecule].T,sim[molecule].C,sim[molecule].dV,sim[molecule].vlsr,sim[molecule].CT,sim[molecule].catalog_file))
 			
 		output.write('\n#### Active Graph Status ####\n\n')
 		
@@ -2166,7 +2167,7 @@ def quiet():
 
 class Molecule(object):
 
-	def __init__(self,name,catalog_file,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,S,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim):
+	def __init__(self,name,catalog_file,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim):
 	
 		self.name = name
 		self.catalog_file = catalog_file
@@ -2180,7 +2181,7 @@ class Molecule(object):
 		self.qn10 = qn10
 		self.qn11 = qn11
 		self.qn12 = qn12
-		self.S = S
+		self.C = C
 		self.dV = dV
 		self.T = T
 		self.CT = CT
