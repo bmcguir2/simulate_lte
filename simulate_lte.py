@@ -8,6 +8,7 @@
 
 # 1.0 - Project start
 # 2.0 - ipython overhaul and simplification
+# 2.1 - fixes bug with status and S/C conversion
 
 #############################################################
 #							Preamble						#
@@ -35,7 +36,7 @@ import matplotlib.lines as mlines
 from datetime import datetime, date, time
 #warnings.filterwarnings('error')
 
-version = 2.0
+version = 2.1
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -1681,13 +1682,14 @@ def status():
 	print('Current Catalog:\t {}' .format(catalog_file))
 	print('Current lab or observation: \t {}' .format(spec))
 	print('T: \t {} K' .format(T))
-	print('S: \t {}' .format(S))
+	print('C: \t {}' .format(C))
 	print('dV: \t {} km/s' .format(dV))
 	print('VLSR: \t {} km/s' .format(vlsr))
 	print('ll: \t {} MHz' .format(ll))
 	print('ul: \t {} MHz' .format(ul))
 	print('CT: \t {} K' .format(CT))
 	print('gauss: \t {}' .format(gauss))
+	print('thermal: \t {}' .format(thermal))
 		
 #sum_stored creates a combined spectrum of all stored molecule simulations and stores it in freq_sum and int_sum.  This might take a while.  It's done from scratch because the frequency axes in freq_sim stored for each molecule will not necessarily be the same, so co-adding is difficult without re-gridding, which well, maybe later.	
 
