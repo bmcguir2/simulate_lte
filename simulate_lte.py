@@ -9,6 +9,7 @@
 # 1.0 - Project start
 # 2.0 - ipython overhaul and simplification
 # 2.1 - fixes bug with status and S/C conversion
+# 2.2 - fixes bug with recall and sum_stored
 
 #############################################################
 #							Preamble						#
@@ -36,7 +37,7 @@ import matplotlib.lines as mlines
 from datetime import datetime, date, time
 #warnings.filterwarnings('error')
 
-version = 2.1
+version = 2.2
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -1370,7 +1371,7 @@ def recall(x):
 
 	save_results('last.results')
 
-	global elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,S,dV,T,vlsr,frequency,freq_sim,intensity,int_sim,current,catalog_file
+	global elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,S,dV,T,vlsr,frequency,freq_sim,intensity,int_sim,current,catalog_file,sijmu
 
 	current = sim[x].name
 	elower = sim[x].elower
@@ -1383,7 +1384,7 @@ def recall(x):
 	qn10 = sim[x].qn10
 	qn11 = sim[x].qn11
 	qn12 = sim[x].qn12
-	S = sim[x].S
+	C = sim[x].C
 	dV = sim[x].dV
 	T = sim[x].T
 	vlsr = sim[x].vlsr
@@ -1401,6 +1402,10 @@ def recall(x):
 	tmp_freq = np.copy(frequency)
 	
 	tmp_freq += (-vlsr)*tmp_freq/ckm
+	
+	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,300,catalog_file)
+	
+	sijmu = (exp(np.float64(-(elower/0.695)/300)) - exp(np.float64(-(eupper/0.695)/300)))**(-1) * ((10**logint)/frequency) * ((4.16231*10**(-5))**(-1)) * Q
 	
 	freq_sim,int_sim=run_sim(tmp_freq,intensity,T,dV,C)	
 		
@@ -1741,13 +1746,21 @@ def sum_stored():
 		
 		tmp_freq_trimmed = trim_array(tmp_freq,tmp_freq,ll,ul)
 		
+		Q = calc_q(sim[x].qns,sim[x].elower,sim[x].qn7,sim[x].qn8,sim[x].qn9,sim[x].qn10,sim[x].qn11,sim[x].qn12,300,sim[x].catalog_file)
+	
+		sijmu = (exp(np.float64(-(sim[x].elower/0.695)/300)) - exp(np.float64(-(sim[x].eupper/0.695)/300)))**(-1) * ((10**sim[x].logint)/sim[x].frequency) * ((4.16231*10**(-5))**(-1)) * Q
+		
 		tmp_int = np.copy(sim[x].intensity)
 		
-		tmp_int = scale_temp(tmp_int,sim[x].qns,sim[x].elower,sim[x].qn7,sim[x].qn8,sim[x].qn9,sim[x].qn10,sim[x].qn11,sim[x].qn12,sim[x].T,sim[x].CT,sim[x].catalog_file)
+		Q = calc_q(sim[x].qns,sim[x].elower,sim[x].qn7,sim[x].qn8,sim[x].qn9,sim[x].qn10,sim[x].qn11,sim[x].qn12,sim[x].T,sim[x].catalog_file)
+		
+		numerator = (sim[x].C)*(8*3.14159**3)*(tmp_freq*1E6)*(sijmu)*(1-((exp((h*tmp_freq*1E6)/(k*sim[x].T))-1)/(exp((h*tmp_freq*1E6)/(k*Tbg))-1)))*eta
+	
+		denominator = 1.06447*sim[x].dV*Q*(exp(sim[x].eupper/(kcm*sim[x].T)))*(3*k)*1E48
+
+		tmp_int = numerator/denominator
 		
 		tmp_int_trimmed = trim_array(tmp_int,tmp_freq,ll,ul)
-		
-		tmp_int_trimmed *= sim[x].S
 		
 		tmp_int_trimmed[tmp_int_trimmed > thermal] = thermal
 	
