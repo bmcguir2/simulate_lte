@@ -10,6 +10,7 @@
 # 2.0 - ipython overhaul and simplification
 # 2.1 - fixes bug with status and S/C conversion
 # 2.2 - fixes bug with recall and sum_stored
+# 2.3 - patch for 13ch3oh
 
 #############################################################
 #							Preamble						#
@@ -37,7 +38,7 @@ import matplotlib.lines as mlines
 from datetime import datetime, date, time
 #warnings.filterwarnings('error')
 
-version = 2.2
+version = 2.3
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -569,6 +570,10 @@ def det_qns(qnformat):
 	'''
 	
 	qns = int(str(qnformat[0])[-1:])
+	
+	if qns > 6:
+	
+		qns = 6
 
 	return qns
 
@@ -622,6 +627,10 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file):
 	elif catalog_file.lower()=='ch2nh.cat':
 	
 		Q = 1.2152*T**1.4863
+		
+	elif catalog_file.lower()=='13ch3oh.cat' or catalog_file.lower()=='c033502.cat':
+	
+		Q = 0.399272*T**1.756329
 	
 	else:
 	
@@ -1187,7 +1196,7 @@ def make_plot():
 
 	minorLocator = AutoMinorLocator(5)
 	plt.xlabel('Frequency (MHz)')
-	plt.ylabel('Intensity (Probably Arbitrary)')
+	plt.ylabel('Intensity (K)')
 
 	plt.locator_params(nbins=4) #Use only 4 actual numbers on the x-axis
 	ax.xaxis.set_minor_locator(minorLocator) #Let the program calculate some minor ticks from that
