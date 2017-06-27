@@ -11,6 +11,7 @@
 # 2.1 - fixes bug with status and S/C conversion
 # 2.2 - fixes bug with recall and sum_stored
 # 2.3 - patch for 13ch3oh
+# 2.4 - fixes bug with catalogs not at 300 K
 
 #############################################################
 #							Preamble						#
@@ -38,7 +39,7 @@ import matplotlib.lines as mlines
 from datetime import datetime, date, time
 #warnings.filterwarnings('error')
 
-version = 2.3
+version = 2.4
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -1412,9 +1413,9 @@ def recall(x):
 	
 	tmp_freq += (-vlsr)*tmp_freq/ckm
 	
-	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,300,catalog_file)
+	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file)
 	
-	sijmu = (exp(np.float64(-(elower/0.695)/300)) - exp(np.float64(-(eupper/0.695)/300)))**(-1) * ((10**logint)/frequency) * ((4.16231*10**(-5))**(-1)) * Q
+	sijmu = (exp(np.float64(-(elower/0.695)/CT)) - exp(np.float64(-(eupper/0.695)/CT)))**(-1) * ((10**logint)/frequency) * ((4.16231*10**(-5))**(-1)) * Q
 	
 	freq_sim,int_sim=run_sim(tmp_freq,intensity,T,dV,C)	
 		
@@ -1559,12 +1560,12 @@ def load_mol(x,format='spcat'):
 	
 	tmp_freq += (-vlsr)*tmp_freq/ckm
 	
-	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,300,catalog_file)
+	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file)
 	
 	print('\nWarning: Accurate absolute brightness temperatures depend on having a complete spectral catalog to calcualte  an accurate partition function.  Below is the value that is calcualted at 300 K from the current catalog.  If this is not accurate, the results need to be adjusted accordingly.\n')
 	print('Q(300) = {:.0f}' .format(Q))
 	
-	sijmu = (exp(np.float64(-(elower/0.695)/300)) - exp(np.float64(-(eupper/0.695)/300)))**(-1) * ((10**logint)/frequency) * ((4.16231*10**(-5))**(-1)) * Q
+	sijmu = (exp(np.float64(-(elower/0.695)/CT)) - exp(np.float64(-(eupper/0.695)/CT)))**(-1) * ((10**logint)/frequency) * ((4.16231*10**(-5))**(-1)) * Q
 	
 	freq_sim,int_sim=run_sim(tmp_freq,intensity,T,dV,C)
 	
@@ -1755,9 +1756,9 @@ def sum_stored():
 		
 		tmp_freq_trimmed = trim_array(tmp_freq,tmp_freq,ll,ul)
 		
-		Q = calc_q(sim[x].qns,sim[x].elower,sim[x].qn7,sim[x].qn8,sim[x].qn9,sim[x].qn10,sim[x].qn11,sim[x].qn12,300,sim[x].catalog_file)
+		Q = calc_q(sim[x].qns,sim[x].elower,sim[x].qn7,sim[x].qn8,sim[x].qn9,sim[x].qn10,sim[x].qn11,sim[x].qn12,CT,sim[x].catalog_file)
 	
-		sijmu = (exp(np.float64(-(sim[x].elower/0.695)/300)) - exp(np.float64(-(sim[x].eupper/0.695)/300)))**(-1) * ((10**sim[x].logint)/sim[x].frequency) * ((4.16231*10**(-5))**(-1)) * Q
+		sijmu = (exp(np.float64(-(sim[x].elower/0.695)/CT)) - exp(np.float64(-(sim[x].eupper/0.695)/CT)))**(-1) * ((10**sim[x].logint)/sim[x].frequency) * ((4.16231*10**(-5))**(-1)) * Q
 		
 		tmp_int = np.copy(sim[x].intensity)
 		
