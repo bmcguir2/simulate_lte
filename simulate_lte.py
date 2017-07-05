@@ -12,6 +12,7 @@
 # 2.2 - fixes bug with recall and sum_stored
 # 2.3 - patch for 13ch3oh
 # 2.4 - fixes bug with catalogs not at 300 K
+# 2.6 - adds autoset functionality
 
 #############################################################
 #							Preamble						#
@@ -39,7 +40,7 @@ import matplotlib.lines as mlines
 from datetime import datetime, date, time
 #warnings.filterwarnings('error')
 
-version = 2.4
+version = 2.6
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -784,7 +785,7 @@ def sim_gaussian(int_sim,freq,linewidth):
 			
 		elif res_kms == True and res_kHz == False:
 		
-			res_pnts = (res*freq[x]/ckm) #get the frequency resolution from the desired velocity
+			res_pnts = (res*freq[x]/(ckm*1000)) #get the frequency resolution from the desired velocity
 		
 		else:
 		
@@ -2185,6 +2186,28 @@ def quiet():
 	elif quietflag == True:
 	
 		quietflag = False
+		
+#autoset_limits() automatically sets the upper and lower limits to 25 MHz above and below the lowest limits of the loaded spectra.
+
+def autoset_limits():
+
+	global ll,ul
+	
+	if len(freq_obs) == 0:
+	
+		print('First, load a spectrum with read_obs()')
+	
+	elif freq_obs[0] < freq_obs[-1]:
+	
+		ll = freq_obs[0] - 25.0
+		ul = freq_obs[-1] + 25.0
+		
+	elif freq_obs[0] > freq_obs[-1]:
+	
+		ll = freq_obs[-1] - 25.0
+		ul = freq_obs[0] + 25.0		
+	
+	
 
 #############################################################
 #							Classes for Storing Results		#
