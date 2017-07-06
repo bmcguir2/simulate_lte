@@ -13,6 +13,7 @@
 # 2.3 - patch for 13ch3oh
 # 2.4 - fixes bug with catalogs not at 300 K
 # 2.6 - adds autoset functionality
+# 2.7 - speeds up gaussian simulations
 
 #############################################################
 #							Preamble						#
@@ -40,7 +41,7 @@ import matplotlib.lines as mlines
 from datetime import datetime, date, time
 #warnings.filterwarnings('error')
 
-version = 2.6
+version = 2.7
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -630,9 +631,13 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file):
 	
 		Q = 1.2152*T**1.4863
 		
-	elif catalog_file.lower()=='13ch3oh.cat' or catalog_file.lower()=='c033502.cat':
+	elif '13ch3oh.cat' in catalog_file.lower() or 'c033502.cat' in catalog_file.lower():
 	
 		Q = 0.399272*T**1.756329
+		
+	elif 'benzonitrile.cat' in catalog_file.lower() or 'bn_global.cat' in catalog_file.lower():
+	
+		Q = 637.92802*T**1.49169
 	
 	else:
 	
@@ -726,7 +731,9 @@ def scale_temp(int_sim,qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,CT,catalog_file):
 	Converts linear intensities at one temperature to another.
 	'''
 
-	scaled_int = np.empty_like(int_sim)
+	scaled_int = np.copy(int_sim)
+	
+	scaled_int *= 0.0
 	
 	Q_T = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file)
 	Q_CT = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file)
@@ -750,13 +757,14 @@ def convert_int(logint):
 	Converts catalog logarithmic intensity units to linear ones
 	'''
 
-	intensity = np.empty_like(logint)	
+	intensity = np.copy(logint)	
 	
 	intensity = 10**(logint)
 	
 	return intensity
 	
-#simulates Gaussian profiles after intensities are simulated.
+#simulates Gaussian profiles after intensities are simulated.			
+
 
 def sim_gaussian(int_sim,freq,linewidth):
 
@@ -764,7 +772,7 @@ def sim_gaussian(int_sim,freq,linewidth):
 	Simulates Gaussian profiles for lines, after the intensities have been calculated.  Tries to be smart with how large a range it simulates over, for computational resources.  Includes a thermal cutoff for optically-thick lines.
 	'''
 	
-	freq_gauss = []
+	freq_gauss_tmp = []
 
 	for x in range(int_sim.shape[0]):
 	
@@ -793,11 +801,15 @@ def sim_gaussian(int_sim,freq,linewidth):
 	
 		freq_line = np.arange(min_f,max_f,res_pnts)
 	
-		freq_gauss.extend(freq_line)
+		freq_gauss_tmp.extend(freq_line)
 	
-	int_gauss = [0.0] * len(freq_gauss)
+	freq_gauss_tmp.sort()
 	
-	freq_gauss.sort()
+	freq_gauss = np.asarray(freq_gauss_tmp)
+	
+	int_gauss = np.copy(freq_gauss)
+	
+	int_gauss *= 0.0
 	
 	start_time = tm.time()
 	
@@ -1545,11 +1557,11 @@ def load_mol(x,format='spcat'):
 	elower = np.asarray(catalog[4])
 	qnformat = np.asarray(catalog[7])
 	
-	tbg = np.empty_like(elower)
+	tbg = np.copy(elower)
 	
 	tbg.fill(2.7) #background temperature in the source, defaulting to CMB.  Can change this manually or with init_source()
 
-	eupper = np.empty_like(elower)
+	eupper = np.copy(elower)
 
 	eupper = elower + frequency/29979.2458
 
@@ -1716,7 +1728,7 @@ def sum_stored():
 	'''
 	global freq_sum, int_sum
 	
-	freq_gauss = []
+	freq_gauss_tmp = []
 
 	for x in sim:
 	
@@ -1741,11 +1753,15 @@ def sum_stored():
 	
 			freq_line = np.arange(min_f,max_f,res_pnts)
 	
-			freq_gauss.extend(freq_line)
+			freq_gauss_tmp.extend(freq_line)
 	
-	int_gauss = [0.0] * len(freq_gauss)
+	freq_gauss_tmp.sort()
 	
-	freq_gauss.sort()
+	freq_gauss = np.asarray(freq_gauss_tmp)
+	
+	int_gauss = np.copy(freq_gauss)
+	
+	int_gauss = 0.0
 	
 	del tmp_freq, tmp_freq_trimmed, tmp_int, tmp_int_trimmed
 		
