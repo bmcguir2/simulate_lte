@@ -14,6 +14,7 @@
 # 2.4 - fixes bug with catalogs not at 300 K
 # 2.6 - adds autoset functionality
 # 2.7 - speeds up gaussian simulations
+# 2.8 - further speeds up gaussian simulations and normalizes spectral resolution
 
 #############################################################
 #							Preamble						#
@@ -41,7 +42,7 @@ import matplotlib.lines as mlines
 from datetime import datetime, date, time
 #warnings.filterwarnings('error')
 
-version = 2.7
+version = 2.8
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -112,7 +113,7 @@ res_kHz = False #if res_kHz is set to True, then the resolution of the Gaussian 
 
 res_kms = False #if res_kms is set to True, then the resolution of the Gaussian simulation is calculated using the value for res, and units of km/s
 
-res = 0.0 #resolution used in Gaussian simulation if res_kHz or res_kms is set to True.
+res = 0.01 #resolution used in Gaussian simulation if res_kHz or res_kms is set to True.
 
 #############################################################
 #							Functions						#
@@ -781,35 +782,30 @@ def sim_gaussian(int_sim,freq,linewidth):
 	'''
 	
 	freq_gauss_tmp = []
+	
+	x = 0
 
-	for x in range(int_sim.shape[0]):
+	while (x < len(int_sim)):
 	
 		l_f = linewidth*freq[x]/ckm #get the FWHM in MHz
 	
 		min_f = freq[x] - 10*l_f #get the frequency 10 FWHM lower
+		
 		max_f = freq[x] + 10*l_f #get the frequency 10 FWHM higher
 		
-		if res_kHz==True and res_kms==True:
+		if x < len(int_sim)-2:
 		
-			print('You have both the res_kHz and res_kms flags set to true.  The program will default back to the points per line value, currently {}, until you set one of these flags to False.' .format(npts_line))
-	
-			res_pnts = l_f / npts_line #determine a resolution element (15 points across the line)
+			while (freq[x+1] < max_f and x < len(int_sim)-2):
+		
+					x += 1
 			
-		elif res_kHz == True and res_kms == False:
-		
-			res_pnts = res/1000 
-			
-		elif res_kms == True and res_kHz == False:
-		
-			res_pnts = (res*freq[x]/(ckm*1000)) #get the frequency resolution from the desired velocity
-		
-		else:
-		
-			res_pnts = l_f / npts_line #determine a resolution element (15 points across the line)	
+					max_f = freq[x] + 10*l_f #get the frequency 10 FWHM higher
 	
-		freq_line = np.arange(min_f,max_f,res_pnts)
+		freq_line = np.arange(min_f,max_f,res) #generate a chunk of spectra at resolution res
 	
 		freq_gauss_tmp.extend(freq_line)
+		
+		x+= 1
 	
 	freq_gauss_tmp.sort()
 	
@@ -1304,7 +1300,7 @@ def read_obs(x):
 	reads in observations or laboratory spectra and populates freq_obs and int_obs.  will detect a standard .ispec header from casaviewer export, and will apply a GHz flag if necessary, as well as populating the coords variable with the coordinates from the header.
 	'''
 
-	global spec, coords, GHz
+	global spec, coords, GHz, res
 
 	spec = x
 
@@ -1350,6 +1346,8 @@ def read_obs(x):
 	if GHz == True:
 	
 		freq_obs[:] = [x*1000.0 for x in freq_obs]
+		
+	res = freq_obs[1]-freq_obs[0]	
 		
 	try:		
 		lines['obs'] = 	ax.plot(freq_obs,int_obs,color = 'black',label='obs',zorder=0)
@@ -1402,7 +1400,7 @@ def recall(x):
 
 	save_results('last.results')
 
-	global elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,S,dV,T,vlsr,frequency,freq_sim,intensity,int_sim,current,catalog_file,sijmu
+	global elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,S,dV,T,vlsr,frequency,freq_sim,intensity,int_sim,current,catalog_file,sijmu,C
 
 	current = sim[x].name
 	elower = sim[x].elower
@@ -1737,6 +1735,8 @@ def sum_stored():
 	global freq_sum, int_sum
 	
 	freq_gauss_tmp = []
+	
+	freq_sim_total = []
 
 	for x in sim:
 	
@@ -1746,22 +1746,30 @@ def sum_stored():
 		
 		tmp_freq_trimmed = trim_array(tmp_freq,tmp_freq,ll,ul)
 		
-		tmp_int = np.copy(sim[x].intensity)
-		
-		tmp_int_trimmed = trim_array(tmp_int,tmp_freq,ll,ul)
+		freq_sim_total.extend(tmp_freq_trimmed)
 
-		for y in range(len(tmp_int_trimmed)):
+	freq_sim_total.sort()
+		
+	y = 0
+		
+	while (y < len(freq_sim_total)):
 	
-			l_f = sim[x].dV*tmp_freq_trimmed[y]/ckm #get the FWHM in MHz
+		l_f = sim[x].dV*freq_sim_total[y]/ckm #get the FWHM in MHz
+
+		min_f = freq_sim_total[y] - 10*l_f #get the frequency 10 FWHM lower
+		max_f = freq_sim_total[y] + 10*l_f #get the frequency 10 FWHM higher
 	
-			min_f = tmp_freq_trimmed[y] - 10*l_f #get the frequency 10 FWHM lower
-			max_f = tmp_freq_trimmed[y] + 10*l_f #get the frequency 10 FWHM higher
+		if y < len(freq_sim_total)-2:
 	
-			res_pnts = l_f / 15 #determine a resolution element (15 points across the line)
+			while (freq_sim_total[y+1] < max_f and y < len(freq_sim_total)-2):
 	
-			freq_line = np.arange(min_f,max_f,res_pnts)
-	
-			freq_gauss_tmp.extend(freq_line)
+				y += 1
+
+		freq_line = np.arange(min_f,max_f,res)
+
+		freq_gauss_tmp.extend(freq_line)
+		
+		y += 1
 	
 	freq_gauss_tmp.sort()
 	
@@ -1769,9 +1777,9 @@ def sum_stored():
 	
 	int_gauss = np.copy(freq_gauss)
 	
-	int_gauss = 0.0
+	int_gauss *= 0.0
 	
-	del tmp_freq, tmp_freq_trimmed, tmp_int, tmp_int_trimmed
+	del tmp_freq, tmp_freq_trimmed
 		
 	for x in sim:
 	
@@ -1801,7 +1809,7 @@ def sum_stored():
 	
 		for y in range(len(tmp_int_trimmed)):
 		
-			if abs(tmp_int_trimmed[y]) < rms/10:
+			if abs(tmp_int_trimmed[y]) < 0.001:
 			
 				continue
 		
@@ -1959,6 +1967,13 @@ def restore(x):
 	
 	thermal = float(active_array[11].split('\t')[1].strip(' K\n'))
 	
+	try:
+		obs = active_array[1].split('\t')[1].strip('\n')
+		read_obs(obs)
+	except:
+		res = 0.1
+		pass
+	
 	#OK, now time to do the hard part.  As one always should, let's start with the middle part of the whole file, and load and then store all of the simulations.
 	
 	for i in range(len(stored_array)):
@@ -1971,17 +1986,12 @@ def restore(x):
 		CT = float(stored_array[i].split('\t')[5])
 		catalog_file = str(stored_array[i].split('\t')[6]).strip('\n').strip()
 		
-# 		try:
+
 		first_run = True
-		try:
-			foo = load_mol(catalog_file)
-			if foo == False:
-				raise ValueError()
-		except ValueError:
+		try:	
+			load_mol(catalog_file)
+		except FileNotFoundError:
 			continue
-# 		except FileNotFoundError:
-# 			print('I was unable to locate the catalog file {} for molecule entry {}.  Sorry.' .format(catalog_file,name))
-# 			return
 			
 		store(name)
 		
@@ -2001,13 +2011,16 @@ def restore(x):
 	vlsr = float(active_array[5].split('\t')[1].strip(' km/s\n'))
 	CT = float(active_array[8].split('\t')[1].strip(' K\n'))
 	current = active_array[0].split('\t')[1].strip('\n')
+	name = active_array[0].split('\t')[1]
+	
+
 	
 	try:
 		first_run = True
 		load_mol(catalog_file)
+		store(name)
 	except FileNotFoundError:
-		print('I was unable to locate the catalog file {} for molecule entry {}.  Sorry.' .format(catalog_file,name))
-		return
+		pass
 		
 	#And finally, overplot anything that was on the plot previously
 	
