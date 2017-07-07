@@ -634,10 +634,6 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file):
 	elif '13ch3oh.cat' in catalog_file.lower() or 'c033502.cat' in catalog_file.lower():
 	
 		Q = 0.399272*T**1.756329
-		
-	elif 'benzonitrile.cat' in catalog_file.lower() or 'bn_global.cat' in catalog_file.lower():
-	
-		Q = 637.92802*T**1.49169
 	
 	else:
 	
@@ -716,8 +712,20 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file):
 	
 			J = temp[i][0] #Extract a J value from the list
 			E = temp[i][qns] #Extract its corresponding energy
+			
+			if 'benzonitrile.cat' in catalog_file.lower() or 'bn_global.cat' in catalog_file.lower():
+			
+				if (temp[i][1] % 2 == 0):
+				
+					 Q += 5*(2*J+1)*exp(np.float64(-E/(kcm*T)))
+					 
+				else:
+				
+					Q += 3*(2*J+1)*exp(np.float64(-E/(kcm*T)))
+					
+			else:
 		
-			Q += (2*J+1)*exp(np.float64(-E/(kcm*T))) #Add it to Q
+				Q += (2*J+1)*exp(np.float64(-E/(kcm*T))) #Add it to Q
 			
 		#result = [Q,ustates] #can enable this function to check the number of states used in the calculation, but note that this will break calls to Q further down that don't go after element 0.
 	
