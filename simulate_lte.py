@@ -1391,7 +1391,7 @@ def store(x=None):
 	
 	if x == None:
 	
-		x = '{}' .format(catalog_file.split('.')[0]) 
+		x = '{}' .format(catalog_file.split('.')[0].strip('\n')) 
 	
 	sim[x] = Molecule(x,catalog_file,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim,labels)
 	
@@ -1978,7 +1978,7 @@ def restore(x):
 	
 	if restore_version != version:
 	
-		print('Warning: {} was created using v{}.  The current version is v{}.  Type help(restore) for more information.' .format(x,restore_version,version))   
+		print('Warning: {} was created using v{}.  The current version is v{}.  Type help(restore) for more information.' .format(x,restore_version,str(version)))   
 		
 	#separate out the sections into their own arrays
 
@@ -2061,7 +2061,7 @@ def restore(x):
 	
 	for i in range(len(stored_array)):
 	
-		name = stored_array[i].split('\t')[0]
+		name = stored_array[i].split('\t')[0].strip('\n')
 		T = float(stored_array[i].split('\t')[1])
 		C = float(stored_array[i].split('\t')[2])
 		dV = float(stored_array[i].split('\t')[3])
@@ -2082,29 +2082,28 @@ def restore(x):
 	
 	#Now we move on to loading in the currently-active molecule
 	
-	catalog_file = active_array[10].split('\t')[1].strip('\n')
 	try:
 		obs = active_array[1].split('\t')[1].strip('\n')
 		read_obs(obs)
 	except:
 		pass
-	T = float(active_array[2].split('\t')[1].strip(' K\n'))
-	S = float(active_array[3].split('\t')[1].strip('\n'))
-	dV = float(active_array[4].split('\t')[1].strip(' km/s\n'))
-	vlsr = float(active_array[5].split('\t')[1].strip(' km/s\n'))
-	CT = float(active_array[8].split('\t')[1].strip(' K\n'))
-	current = active_array[0].split('\t')[1].strip('\n')
-	name = active_array[0].split('\t')[1]
-	
+	name = active_array[0].split('\t')[1].strip('\n')
 
-	
 	try:
+		recall(name)
+	except KeyError:
+		catalog_file = active_array[10].split('\t')[1].strip('\n')
+		T = float(active_array[2].split('\t')[1].strip(' K\n'))
+		C = float(active_array[3].split('\t')[1].strip('\n'))
+		dV = float(active_array[4].split('\t')[1].strip(' km/s\n'))
+		vlsr = float(active_array[5].split('\t')[1].strip(' km/s\n'))
+		CT = float(active_array[8].split('\t')[1].strip(' K\n'))
+		current = active_array[0].split('\t')[1].strip('\n')
+		name = active_array[0].split('\t')[1]
+		
 		first_run = True
 		load_mol(catalog_file)
-		store(name)
-	except FileNotFoundError:
-		pass
-		
+
 	#And finally, overplot anything that was on the plot previously
 	
 	for i in range(len(graph_array)):
@@ -2418,9 +2417,21 @@ def plot_residuals():
 	int_resid = int_obs_tmp - int_sum
 	
 	f, (ax1,ax2) = plt.subplots(2, sharex=True, sharey=False)
+	
+	minorLocator = AutoMinorLocator(5)
+	plt.xlabel('Frequency (MHz)')
+	ax1.set_ylabel('Intensity (K)')
+	ax2.set_ylabel('Intensity (K)')
+	
+	plt.locator_params(nbins=4) #Use only 4 actual numbers on the x-axis
+	ax1.xaxis.set_minor_locator(minorLocator) #Let the program calculate some minor ticks from that
+
+	ax1.get_xaxis().get_major_formatter().set_scientific(False) #Don't let the x-axis go into scientific notation
+	ax1.get_xaxis().get_major_formatter().set_useOffset(False)
 		
 	ax2.plot(freq_obs,int_obs,color = 'black',label='obs')
 	ax2.plot(freq_sum,int_sum,color = 'green',label='simulation')
+	ax1.set_ylim(ax2.get_ylim())
 	ax1.plot(freq_resid,int_resid,color = 'red',label='residual')
 	
 	ax2.legend()
