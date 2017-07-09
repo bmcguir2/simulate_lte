@@ -1350,8 +1350,11 @@ def read_obs(x):
 		freq_obs.append(float(obs[x].split()[0]))
 		int_obs.append(float(obs[x].split()[1].strip('\n')))
 	
-	freq_obs = [freq_obs for freq_obs,int_obs in sorted(zip(freq_obs,int_obs))]
-	int_obs = [int_obs for freq_obs,int_obs in sorted(zip(freq_obs,int_obs))]	
+	freq_tmp = list(freq_obs)
+	int_tmp = list(int_obs)
+	
+	freq_obs = [freq_tmp for freq_tmp,int_tmp in sorted(zip(freq_tmp,int_tmp))]
+	int_obs = [int_tmp for freq_tmp,int_tmp in sorted(zip(freq_tmp,int_tmp))]	
 		
 	if GHz == True:
 	
@@ -1476,6 +1479,7 @@ def recall(x):
 		
 	if tmp_flag == True:
 	
+		labels_off()
 		labels_on()
 
 		
@@ -1562,12 +1566,11 @@ def load_mol(x,format='spcat'):
 	global frequency,logint,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,first_run,tbg,sijmu,labels,gauss
 	
 	
-	if first_run == False:
-		try:
-			clear_line('current')
-			labels_off()
-		except:
-			pass
+	try:
+		clear_line('current')
+		labels_off()
+	except:
+		pass
 	
 	current = x
 	
@@ -1650,6 +1653,8 @@ def load_mol(x,format='spcat'):
 	
 		freq_stick = np.asarray([freq_sim])
 		int_stick = np.asarray([int_sim])
+		
+	labels_off()	
 	
 	labels = []
 	
@@ -2331,6 +2336,8 @@ def autoset_limits():
 
 def labels_on():
 
+	labels_off()
+
 	global labels_flag
 
 	for x in labels:
@@ -2345,12 +2352,18 @@ def labels_on():
 
 def labels_off():
 
-	global labels_flag
+	global labels_flag,labels
 
-	for x in labels:
+	try:
 	
-		x.remove()
-		
+		for x in labels:
+	
+			x.remove()
+				
+	except ValueError:
+	
+		pass			
+
 	fig.canvas.draw()
 	
 	labels_flag = False
