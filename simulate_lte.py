@@ -1565,7 +1565,13 @@ def load_mol(x,format='spcat'):
 
 	global frequency,logint,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,first_run,tbg,sijmu,labels,gauss
 	
-	
+	try:
+		test = ax.get_ylim()
+	except:
+		NameError:
+		make_plot()
+		close()
+		
 	try:
 		clear_line('current')
 		labels_off()
@@ -1942,6 +1948,7 @@ def restore(x):
 	
 	#close the old graph
 	
+	make_plot()
 	close()
 	
 	#empty out the previously-stored simulations
@@ -2364,7 +2371,10 @@ def labels_off():
 	
 		pass			
 
-	fig.canvas.draw()
+	try:
+		fig.canvas.draw()
+	except NameError:
+		pass
 	
 	labels_flag = False
 
