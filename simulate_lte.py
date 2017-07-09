@@ -1249,6 +1249,10 @@ def make_plot():
 		
 	fig.canvas.draw()
 	
+	if labels_flag == True:
+	
+		labels_on()
+	
 	save_results('last.results')
 	
 #obs_off turns off the observations
@@ -1563,20 +1567,24 @@ def load_mol(x,format='spcat'):
 	loads a new molecule into the system.  Make sure to store the old molecule simulation first, if you want to get it back.  The current graph will be updated with the new molecule.  Catalog file must be given as a string.  Simulation will begin with the same T, dV, S, vlsr as previous, so change those first if you want.
 	'''
 
-	global frequency,logint,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,first_run,tbg,sijmu,labels,gauss
+	global frequency,logint,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,first_run,tbg,sijmu,labels,gauss,labels_flag
 	
-	try:
-		test = ax.get_ylim()
-	except:
-		NameError:
-		make_plot()
-		close()
+	close()
+	
+	if labels_flag == True:	
+		try:
+			clear_line('current')
+			labels_off()
+		except:
+			pass
+		labels_on()
 		
-	try:
-		clear_line('current')
-		labels_off()
-	except:
-		pass
+	else:
+		try:
+			clear_line('current')
+			labels_off()
+		except:
+			pass		
 	
 	current = x
 	
@@ -1660,7 +1668,11 @@ def load_mol(x,format='spcat'):
 		freq_stick = np.asarray([freq_sim])
 		int_stick = np.asarray([int_sim])
 		
-	labels_off()	
+	if labels_flag == True:
+		labels_off()
+		labels_flag = True
+	else:
+		labels_off()	
 	
 	labels = []
 	
@@ -1704,7 +1716,9 @@ def load_mol(x,format='spcat'):
 	
 		labels_off()
 		labels_on()
-	
+		
+	make_plot()
+		
 	save_results('last.results')
 	
 	return
