@@ -15,6 +15,8 @@
 # 2.6 - adds autoset functionality
 # 2.7 - speeds up gaussian simulations
 # 2.8 - further speeds up gaussian simulations and normalizes spectral resolution
+# 2.9 - adds labeling ability (Eupper and Quantum Numbers) to current plot
+# 2.10 - adds residual plotting ability
 
 #############################################################
 #							Preamble						#
@@ -42,7 +44,7 @@ import matplotlib.lines as mlines
 from datetime import datetime, date, time
 #warnings.filterwarnings('error')
 
-version = 2.8
+version = 2.10
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -114,6 +116,10 @@ res_kHz = False #if res_kHz is set to True, then the resolution of the Gaussian 
 res_kms = False #if res_kms is set to True, then the resolution of the Gaussian simulation is calculated using the value for res, and units of km/s
 
 res = 0.01 #resolution used in Gaussian simulation if res_kHz or res_kms is set to True.
+
+labels = [] #will hold line labels
+
+labels_flag = False #says whether the labels are currently plotted or not.
 
 #############################################################
 #							Functions						#
@@ -1105,6 +1111,12 @@ def modC(x):
 	
 	save_results('last.results')
 	
+#modS is a legacy command from viewspectrum.py that just calls modC, the new command.
+
+def modS(x):
+
+	modC(x)
+
 #moddV changes the velocity width, re-simulates, and re-plots
 
 def moddV(x):
@@ -1347,7 +1359,7 @@ def read_obs(x):
 	
 		freq_obs[:] = [x*1000.0 for x in freq_obs]
 		
-	res = freq_obs[1]-freq_obs[0]	
+	res = abs(freq_obs[1]-freq_obs[0])	
 		
 	try:		
 		lines['obs'] = 	ax.plot(freq_obs,int_obs,color = 'black',label='obs',zorder=0)
@@ -1378,7 +1390,7 @@ def store(x=None):
 	
 		x = '{}' .format(catalog_file.split('.')[0]) 
 	
-	sim[x] = Molecule(x,catalog_file,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim)
+	sim[x] = Molecule(x,catalog_file,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim,labels)
 	
 	if auto_update == True:
 	
@@ -1400,8 +1412,16 @@ def recall(x):
 
 	save_results('last.results')
 
-	global elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,S,dV,T,vlsr,frequency,freq_sim,intensity,int_sim,current,catalog_file,sijmu,C
+	global elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,S,dV,T,vlsr,frequency,freq_sim,intensity,int_sim,current,catalog_file,sijmu,C,labels
 
+	tmp_flag = False
+	
+	if labels_flag == True:
+	
+		tmp_flag = True
+		
+	labels_off()
+	
 	current = sim[x].name
 	elower = sim[x].elower
 	eupper = sim[x].eupper
@@ -1422,6 +1442,7 @@ def recall(x):
 	intensity = sim[x].intensity
 	int_sim = sim[x].int_sim
 	catalog_file = sim[x].catalog_file
+	labels = sim[x].labels
 
 	try:
 		clear_line('current')
@@ -1454,6 +1475,11 @@ def recall(x):
 		fig.canvas.draw()
 	except:	
 		make_plot()	
+		
+	if tmp_flag == True:
+	
+		labels_on()
+
 		
 	save_results('last.results')	
 	
@@ -1535,12 +1561,13 @@ def load_mol(x,format='spcat'):
 	loads a new molecule into the system.  Make sure to store the old molecule simulation first, if you want to get it back.  The current graph will be updated with the new molecule.  Catalog file must be given as a string.  Simulation will begin with the same T, dV, S, vlsr as previous, so change those first if you want.
 	'''
 
-	global frequency,logint,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,first_run,tbg,sijmu
+	global frequency,logint,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,first_run,tbg,sijmu,labels,gauss
 	
 	
 	if first_run == False:
 		try:
 			clear_line('current')
+			labels_off()
 		except:
 			pass
 	
@@ -1554,6 +1581,12 @@ def load_mol(x,format='spcat'):
 
 	frequency = np.copy(catalog[0])
 	logint = np.copy(catalog[2])
+	qn1 = np.asarray(catalog[8])
+	qn2 = np.asarray(catalog[9])
+	qn3 = np.asarray(catalog[10])
+	qn4 = np.asarray(catalog[11])
+	qn5 = np.asarray(catalog[12])
+	qn6 = np.asarray(catalog[13])
 	qn7 = np.asarray(catalog[14])
 	qn8 = np.asarray(catalog[15])
 	qn9 = np.asarray(catalog[16])
@@ -1588,6 +1621,7 @@ def load_mol(x,format='spcat'):
 	
 	freq_sim,int_sim=run_sim(tmp_freq,intensity,T,dV,C)
 	
+	
 	#check if a plot is already open.  If it is, nothing happens.  If there are no plots open, plt.get_fignums()[0] is empty and throws an IndexError, which the exception catches and just makes a fresh plot.  If it's the first time the program has been run since it was loaded, it ignores this check and just makes a new plot.  
 	
 	if first_run == True:
@@ -1600,6 +1634,47 @@ def load_mol(x,format='spcat'):
 		except:	
 			make_plot()
 			return 
+			
+	#now make some labels in case we want to add them to the plot later
+	
+	qn_lower = [qn1,qn2,qn3,qn4,qn5,qn6]
+	qn_upper = [qn7,qn8,qn9,qn10,qn11,qn12]
+	
+	if gauss == True:
+	
+		gauss = False
+		
+		freq_stick,int_stick=run_sim(tmp_freq,intensity,T,dV,C)
+		
+		gauss = True
+		
+	else:
+	
+		freq_stick = np.asarray([freq_sim])
+		int_stick = np.asarray([int_sim])
+	
+	labels = []
+	
+	for x in range(len(int_stick)):
+	
+		tmp_u_qns = ''
+		tmp_l_qns = ''
+		
+		for y in range(qns):
+		
+			tmp_u_qns += str(qn_upper[y][x]) + ','
+			tmp_l_qns += str(qn_lower[y][x]) + ','
+			
+		tmp_u_qns = tmp_u_qns[:-1]
+		tmp_l_qns = tmp_l_qns[:-1]
+		
+		tmp_qns = tmp_u_qns + ' -> ' + tmp_l_qns 
+		
+		tmp_text = '{}, Eu = {:.2f} K' .format(tmp_qns,eupper[x])
+			
+		tmp_label = ax.annotate(tmp_text, xy = (freq_stick[x],int_stick[x]), xytext = (freq_stick[x],int_stick[x]*1.05), rotation=90, horizontalalignment = 'center', verticalalignment='bottom', color='green')
+		
+		labels.append(tmp_label)			
 		
 	#if there is a plot open, we just update the current simulation
 	
@@ -1615,6 +1690,11 @@ def load_mol(x,format='spcat'):
 		warnings.simplefilter('ignore')
 		ax.legend()
 	fig.canvas.draw()	
+	
+	if labels_flag == True:
+	
+		labels_off()
+		labels_on()
 	
 	save_results('last.results')
 	
@@ -1690,7 +1770,7 @@ def save_results(x):
 	
 		output.write('#### Stored Simulations ####\n\n')
 		
-		output.write('Molecule\tT(K)\tS\tdV\tvlsr\tCT\tcatalog_file\n')
+		output.write('Molecule\tT(K)\tC\tdV\tvlsr\tCT\tcatalog_file\n')
 	
 		for molecule in sim:
 		
@@ -2244,7 +2324,109 @@ def autoset_limits():
 		ll = freq_obs[-1] - 25.0
 		ul = freq_obs[0] + 25.0		
 	
+#labels_on() will turn on and add to the plot labels of Eupper and the quantum numbers for the active molecule *only*
+
+def labels_on():
+
+	global labels_flag
+
+	for x in labels:
 	
+		ax.add_artist(x)
+	
+	fig.canvas.draw()
+	
+	labels_flag = True
+	
+#labels_off() will turn off labels.
+
+def labels_off():
+
+	global labels_flag
+
+	for x in labels:
+	
+		x.remove()
+		
+	fig.canvas.draw()
+	
+	labels_flag = False
+
+#plot_residuals will make a new plot and show the residual spectrum after the total simulation is subtracted from the observations
+
+def plot_residuals():
+
+	#first, make a simulation that has exactly the same frequency points as the observations
+	
+	freq_gauss = np.asarray(freq_obs)
+	
+	int_gauss = np.copy(freq_gauss)
+	
+	int_gauss *= 0.0	
+	
+	for x in sim:
+
+		tmp_freq = np.copy(sim[x].frequency)
+	
+		tmp_freq += (-sim[x].vlsr)*tmp_freq/ckm	
+	
+		tmp_freq_trimmed = trim_array(tmp_freq,tmp_freq,ll,ul)
+	
+		Q = calc_q(sim[x].qns,sim[x].elower,sim[x].qn7,sim[x].qn8,sim[x].qn9,sim[x].qn10,sim[x].qn11,sim[x].qn12,CT,sim[x].catalog_file)
+
+		sijmu = (exp(np.float64(-(sim[x].elower/0.695)/CT)) - exp(np.float64(-(sim[x].eupper/0.695)/CT)))**(-1) * ((10**sim[x].logint)/sim[x].frequency) * ((4.16231*10**(-5))**(-1)) * Q
+	
+		tmp_int = np.copy(sim[x].intensity)
+	
+		Q = calc_q(sim[x].qns,sim[x].elower,sim[x].qn7,sim[x].qn8,sim[x].qn9,sim[x].qn10,sim[x].qn11,sim[x].qn12,sim[x].T,sim[x].catalog_file)
+	
+		numerator = (sim[x].C)*(8*3.14159**3)*(tmp_freq*1E6)*(sijmu)*(1-((exp((h*tmp_freq*1E6)/(k*sim[x].T))-1)/(exp((h*tmp_freq*1E6)/(k*Tbg))-1)))*eta
+
+		denominator = 1.06447*sim[x].dV*Q*(exp(sim[x].eupper/(kcm*sim[x].T)))*(3*k)*1E48
+
+		tmp_int = numerator/denominator
+	
+		tmp_int_trimmed = trim_array(tmp_int,tmp_freq,ll,ul)
+	
+		tmp_int_trimmed[tmp_int_trimmed > thermal] = thermal
+
+		for y in range(len(tmp_int_trimmed)):
+	
+			if abs(tmp_int_trimmed[y]) < 0.001:
+		
+				continue
+	
+			l_f = sim[x].dV*tmp_freq_trimmed[y]/ckm #get the FWHM in MHz
+		
+			c = l_f/2.35482
+
+			int_gauss += tmp_int_trimmed[y]*exp(-((freq_gauss - tmp_freq_trimmed[y])**2/(2*c**2)))
+			
+	int_gauss[int_gauss > thermal] = thermal
+	
+	freq_sum = freq_gauss
+	int_sum = int_gauss		
+	
+	freq_resid = np.asarray(freq_sum)
+	int_resid = np.asarray(int_sum)
+	
+	int_obs_tmp = np.asarray(int_obs)
+	
+	int_resid = int_obs_tmp - int_sum
+	
+	f, (ax1,ax2) = plt.subplots(2, sharex=True, sharey=False)
+		
+	ax2.plot(freq_obs,int_obs,color = 'black',label='obs')
+	ax2.plot(freq_sum,int_sum,color = 'green',label='simulation')
+	ax1.plot(freq_resid,int_resid,color = 'red',label='residual')
+	
+	ax2.legend()
+	ax1.legend()
+	
+	fig.canvas.draw()
+
+		
+		
 
 #############################################################
 #							Classes for Storing Results		#
@@ -2252,7 +2434,7 @@ def autoset_limits():
 
 class Molecule(object):
 
-	def __init__(self,name,catalog_file,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim):
+	def __init__(self,name,catalog_file,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim,labels):
 	
 		self.name = name
 		self.catalog_file = catalog_file
@@ -2275,6 +2457,7 @@ class Molecule(object):
 		self.freq_sim = freq_sim
 		self.intensity = intensity
 		self.int_sim = int_sim
+		self.labels = labels
 
 	
 #############################################################
