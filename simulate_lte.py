@@ -16,7 +16,7 @@
 # 2.7 - speeds up gaussian simulations
 # 2.8 - further speeds up gaussian simulations and normalizes spectral resolution
 # 2.9 - adds labeling ability (Eupper and Quantum Numbers) to current plot
-# 2.10 - adds residual plotting ability
+# 3.0 - adds residual plotting ability
 
 #############################################################
 #							Preamble						#
@@ -42,7 +42,7 @@ import itertools
 from datetime import datetime
 #warnings.filterwarnings('error')
 
-version = 2.10
+version = 3.0
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
