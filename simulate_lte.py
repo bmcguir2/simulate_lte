@@ -22,7 +22,7 @@
 #							Preamble						#
 #############################################################
 
-import os, sys, argparse, math
+import sys
 
 #Python version check
 
@@ -35,13 +35,11 @@ if sys.version_info.major != 3:
 import numpy as np
 from numpy import exp as exp
 import time as tm
-import random
 import warnings
 from matplotlib.ticker import AutoMinorLocator
 import matplotlib.pyplot as plt
 import itertools
-import matplotlib.lines as mlines
-from datetime import datetime, date, time
+from datetime import datetime
 #warnings.filterwarnings('error')
 
 version = 2.10
@@ -407,8 +405,6 @@ def splice_array(x):
 	qn10 = np.empty(len(x),dtype=object)
 	qn11 = np.empty(len(x),dtype=object)
 	qn12 = np.empty(len(x),dtype=object)
-	
-	parity = ['+','-']
 
 	for line in range(len(x)):
 	
@@ -712,8 +708,7 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file):
 		temp = list(set(map(tuple,combined_array))) #Don't know HOW this works, but it does: sorts through the array and removes all duplicate entries, so that only a single entry remains for each set of quantum numbers.
 	
 		ustates = len(temp) #Number of unique lower states
-	
-		e_index = qns
+
 	
 		for i in range(ustates):
 	
@@ -1627,16 +1622,16 @@ def load_mol(x,format='spcat'):
 	
 	#check if a plot is already open.  If it is, nothing happens.  If there are no plots open, plt.get_fignums()[0] is empty and throws an IndexError, which the exception catches and just makes a fresh plot.  If it's the first time the program has been run since it was loaded, it ignores this check and just makes a new plot.  
 	
-	if first_run == True:
-		make_plot()
-		first_run = False
-		return 
-	else:
-		try:
-			plt.get_fignums()[0]
-		except:	
-			make_plot()
-			return 
+# 	if first_run == True:
+# 		make_plot()
+# 		first_run = False
+# 		return 
+# 	else:
+# 		try:
+# 			plt.get_fignums()[0]
+# 		except:	
+# 			make_plot()
+# 			return 
 			
 	#now make some labels in case we want to add them to the plot later
 	
@@ -1677,7 +1672,7 @@ def load_mol(x,format='spcat'):
 			
 		tmp_label = ax.annotate(tmp_text, xy = (freq_stick[x],int_stick[x]), xytext = (freq_stick[x],int_stick[x]*1.05), rotation=90, horizontalalignment = 'center', verticalalignment='bottom', color='green')
 		
-		labels.append(tmp_label)			
+		labels.append(tmp_label)				
 		
 	#if there is a plot open, we just update the current simulation
 	
@@ -1938,7 +1933,11 @@ def restore(x):
 	This procedure attempts to correct for any backward compatability issues with old versions of the program.  Usually the restore will proceed without issue and will warn the user if there were issues it corrected.  The simplest way to update a restore file is to save it with the latest version of the program after a successful load.  Most of the time, the backwards compatability issues are caused simply by missing meta-data that have been added in later version of the program.  In this case, the default values are simply used.
 	'''
 
-	global frequency,logint,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,T,dV,C,vlsr,ll,ul,CT,gauss,first_run,thermal,sim,GHz,rms
+	global frequency,logint,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,T,dV,C,vlsr,ll,ul,CT,gauss,first_run,thermal,sim,GHz,rms,labels,res
+	
+	#close the old graph
+	
+	close()
 	
 	#empty out the previously-stored simulations
 	
@@ -2071,15 +2070,17 @@ def restore(x):
 		
 
 		first_run = True
-		try:	
-			load_mol(catalog_file)
-		except FileNotFoundError:
-			continue
+		load_mol(catalog_file)
+
+# 		try:	
+# 			load_mol(catalog_file)
+# 		except FileNotFoundError:
+# 			continue
 			
 		store(name)
 		
 		close()
-	
+			
 	#Now we move on to loading in the currently-active molecule
 	
 	try:
@@ -2178,119 +2179,119 @@ def use_GHz():
 
 #calc_beam returns an array of beam sizes for a telescope at each point.  This is a constant value if mode = 'A' for the synthesized beam.
 
-def calc_beam(frequency):
-
-	'''
-	returns an array of beam sizes for a telescope at each point.  This is a constant value if mode = 'A' for the synthesized beam.
-	'''
-	
-	beam_size = np.copy(frequency)
-	
-	if mode == 'A':
-	
-		beam_size.fill(synth_beam)
-		
-	else:
-	
-		beam_size = (1.22*(3*10**8/(frequency*10**6))/dish_size) * 206265
-
-	return beam_size
+#def calc_beam(frequency):
+#
+#	'''
+#	returns an array of beam sizes for a telescope at each point.  This is a constant value if mode = 'A' for the synthesized beam.
+#	'''
+#	
+#	beam_size = np.copy(frequency)
+#	
+#	if mode == 'A':
+#	
+#		beam_size.fill(synth_beam)
+#		
+#	else:
+#	
+#		beam_size = (1.22*(3*10**8/(frequency*10**6))/dish_size) * 206265
+#
+#	return beam_size
 	
 #calc_bcorr calculates and returns the beam dilution correction factor at each frequency, given the source size and the beam size
 
-def calc_bcorr(frequency,beam_size):
-
-	'''
-	calculates and returns the beam dilution correction factor at each frequency, given the source size and the beam size
-	'''
-	
-	bcorr = np.copy(frequency)
-	
-	bcorr = (source_size**2 + beam_size**2)/source_size**2
-	
-	return bcorr
-	
-#apply_telescope takes a simulation and applies a correction factor to the intensity based on a provided telescope configuration, column density, and source structure
-
-def apply_telescope(eupper,T,freq,dV,eta,NT,tbg):
-
-	'''
-	takes a simulation and applies a correction factor to the intensity based on a provided telescope configuration, column density, and source structure
-	'''
-	
-	Q_300 = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,300,catalog_file)
-	
-	sij = (exp(np.float64(-(elower/0.695)/300)) - exp(np.float64(-(eupper/0.695)/300)))**(-1) * ((10**logint)/frequency) * ((4.16231*10**(-5))**(-1)) * Q_300
-	
-	Q_T = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file)
-
-	A = 3*k/(8*(np.pi**3))
-	
-	B = Q_T*np.exp(np.float64(eupper/T))/(freq*(1*10**6)*sij*(1*10**(-43)))
-	
-	C = 0.5*(np.pi/(np.log(2)))**0.5
-	
-	D1 = dV*(1*10**5)/eta
-
-	D2 = (np.exp(h*freq*(1*10**6)/(k*T)) -1)
-	
-	D3 = (np.exp(h*freq*(1*10**6)/(k*tbg)) -1)
-	
-	D = D1/(1-(D2/D3))
-	
-	TA = NT/(A*B*C*D)	
-	
-	beam_size = calc_beam(frequency)
-	
-	bcorr = calc_bcorr(frequency,beam_size)
-	
-	TA /= bcorr
-
-	return TA
-
-#init_source initializes a pre-loaded set of conditions for specific sources
-
-def init_source(source,size=0.0):
-
-	'''
-	Initalizes a pre-loaded set of conditions for specific sources.  Options are:
-	SGRB2N: Requires the desired source size to be set with the size command.  Sets tbg according to Hollis et al. 2007 ApJ 660, L125 (probably not valid below 10 GHz) or other measurements at higher frequencies (XXX, YYY, ZZZ)
-	'''
-	global source_size,tbg,dish_size
-	
-	if source == 'SGRB2N':
-	
-		dish_size = 100.0
-	
-		source_size = 20.0  #The emitting region for the background continuum in SgrB2 is always 20"
-		
-		beam_size = calc_beam(frequency)
-		
-		bcorr_tbg = calc_bcorr(source_size,beam_size) #calculate the correction factor for the continuum
-		
-		tbg = (10**(-1.06*np.log10(frequency/1000) + 2.3))*bcorr_tbg
-		
-		for x in range(tbg.shape[0]):
-	
-			if frequency[x] > 60000:
-		
-				tbg[x] = 5.2
-			
-			if frequency[x] > 130000:
-		
-				tbg[x] = 6.5
-			
-			if frequency[x] > 230000:
-		
-				tbg[x] = 10.0
-			
-			if frequency[x] > 1000000:
-		
-				tbg[x] = 13.7		
-		
-		source_size = size
-
-	return
+#def calc_bcorr(frequency,beam_size):
+#
+#	'''
+#	calculates and returns the beam dilution correction factor at each frequency, given the source size and the beam size
+#	'''
+#	
+#	bcorr = np.copy(frequency)
+#	
+#	bcorr = (source_size**2 + beam_size**2)/source_size**2
+#	
+#	return bcorr
+#	
+##apply_telescope takes a simulation and applies a correction factor to the intensity based on a provided telescope configuration, column density, and source structure
+#
+#def apply_telescope(eupper,T,freq,dV,eta,NT,tbg):
+#
+#	'''
+#	takes a simulation and applies a correction factor to the intensity based on a provided telescope configuration, column density, and source structure
+#	'''
+#	
+#	Q_300 = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,300,catalog_file)
+#	
+#	sij = (exp(np.float64(-(elower/0.695)/300)) - exp(np.float64(-(eupper/0.695)/300)))**(-1) * ((10**logint)/frequency) * ((4.16231*10**(-5))**(-1)) * Q_300
+#	
+#	Q_T = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file)
+#
+#	A = 3*k/(8*(np.pi**3))
+#	
+#	B = Q_T*np.exp(np.float64(eupper/T))/(freq*(1*10**6)*sij*(1*10**(-43)))
+#	
+#	C = 0.5*(np.pi/(np.log(2)))**0.5
+#	
+#	D1 = dV*(1*10**5)/eta
+#
+#	D2 = (np.exp(h*freq*(1*10**6)/(k*T)) -1)
+#	
+#	D3 = (np.exp(h*freq*(1*10**6)/(k*tbg)) -1)
+#	
+#	D = D1/(1-(D2/D3))
+#	
+#	TA = NT/(A*B*C*D)	
+#	
+#	beam_size = calc_beam(frequency)
+#	
+#	bcorr = calc_bcorr(frequency,beam_size)
+#	
+#	TA /= bcorr
+#
+#	return TA
+#
+##init_source initializes a pre-loaded set of conditions for specific sources
+#
+#def init_source(source,size=0.0):
+#
+#	'''
+#	Initalizes a pre-loaded set of conditions for specific sources.  Options are:
+#	SGRB2N: Requires the desired source size to be set with the size command.  Sets tbg according to Hollis et al. 2007 ApJ 660, L125 (probably not valid below 10 GHz) or other measurements at higher frequencies (XXX, YYY, ZZZ)
+#	'''
+#	global source_size,tbg,dish_size
+#	
+#	if source == 'SGRB2N':
+#	
+#		dish_size = 100.0
+#	
+#		source_size = 20.0  #The emitting region for the background continuum in SgrB2 is always 20"
+#		
+#		beam_size = calc_beam(frequency)
+#		
+#		bcorr_tbg = calc_bcorr(source_size,beam_size) #calculate the correction factor for the continuum
+#		
+#		tbg = (10**(-1.06*np.log10(frequency/1000) + 2.3))*bcorr_tbg
+#		
+#		for x in range(tbg.shape[0]):
+#	
+#			if frequency[x] > 60000:
+#		
+#				tbg[x] = 5.2
+#			
+#			if frequency[x] > 130000:
+#		
+#				tbg[x] = 6.5
+#			
+#			if frequency[x] > 230000:
+#		
+#				tbg[x] = 10.0
+#			
+#			if frequency[x] > 1000000:
+#		
+#				tbg[x] = 13.7		
+#		
+#		source_size = size
+#
+#	return
 
 #quiet suppresses warnings about computational time.  Can be used iteratively to turn it on and off.
 
