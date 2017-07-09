@@ -1354,6 +1354,9 @@ def read_obs(x):
 
 		freq_obs.append(float(obs[x].split()[0]))
 		int_obs.append(float(obs[x].split()[1].strip('\n')))
+	
+	freq_obs = [freq_obs for freq_obs,int_obs in sorted(zip(freq_obs,int_obs))]
+	int_obs = [int_obs for freq_obs,int_obs in sorted(zip(freq_obs,int_obs))]	
 		
 	if GHz == True:
 	
