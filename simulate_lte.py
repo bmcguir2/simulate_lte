@@ -17,6 +17,7 @@
 # 2.8 - further speeds up gaussian simulations and normalizes spectral resolution
 # 2.9 - adds labeling ability (Eupper and Quantum Numbers) to current plot
 # 3.0 - adds residual plotting ability
+# 3.1 - adds residual saving ability
 
 #############################################################
 #							Preamble						#
@@ -42,7 +43,7 @@ import itertools
 from datetime import datetime
 #warnings.filterwarnings('error')
 
-version = 3.0
+version = 3.1
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -775,7 +776,6 @@ def convert_int(logint):
 	
 #simulates Gaussian profiles after intensities are simulated.			
 
-
 def sim_gaussian(int_sim,freq,linewidth):
 
 	'''
@@ -897,6 +897,11 @@ def write_spectrum(x,output_file):
 	
 		freq_tmp = freq_sum
 		int_tmp = int_sum
+		
+	elif x == 'residual':
+	
+		freq_tmp = freq_resid
+		int_tmp = int_resid
 		
 	else:
 	
@@ -1946,7 +1951,6 @@ def overplot_sum():
 		warnings.simplefilter('ignore')
 		ax.legend()
 	fig.canvas.draw()	
-
 	
 #restore restores the state of the program from a save file, loading all stored spectra into memory, loads the previously active simulation into current, and restores the last active graph. x is a string with the filename of the restore file. The catalog files must be present, and named to match those in the save file.
 
@@ -2398,6 +2402,8 @@ def plot_residuals():
 
 	#first, make a simulation that has exactly the same frequency points as the observations
 	
+	global freq_resid,int_resid
+	
 	freq_gauss = np.asarray(freq_obs)
 	
 	int_gauss = np.copy(freq_gauss)
@@ -2529,7 +2535,13 @@ int_sim = []
 freq_sum = [] #to hold combined spectra
 int_sum = []
 
+freq_resid = [] #to hold residual spectra
+int_resid = []
 current = catalog_file
 
 colors = itertools.cycle(['#ff8172','#514829','#a73824','#7b3626','#a8ac87','#8c8e64','#974710','#d38e20','#ce9a3a','#ae7018','#ac5b14','#64350f','#b18f59','#404040','#791304','#1f2161','#171848','#3082fe','#2c5b5e','#390083','#5c65f8','#6346fa','#3c3176','#1cf6ba','#c9bcf0','#90edfc','#3fb8ee','#b89b33','#e7d17b'])
 styles = itertools.cycle(['-','--','-.',':'])
+
+make_plot()
+
+close()
