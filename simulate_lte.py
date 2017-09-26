@@ -55,7 +55,7 @@ ckm = 2.998*10**5 #speed of light in km/s
 #							Warning 						#
 #############################################################
 
-print('\nWarning! This code is in beta.  While it is believed that the resulted produced from it are robust, it is HIGHLY recommended to verify the results against a secondary resource before using for anything important.') 
+print('\nWarning! This code is in beta. I believe the relative intensities for a given molecule are robust.  Column densities derived are a best-guess only, however, due to sometimes severe issues with the way JPL-format catalogs calculate partition functions and Sij values.') 
 
 #############################################################
 #							Defaults 						#
@@ -1612,8 +1612,8 @@ def load_mol(x,format='spcat'):
 	
 	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file)
 	
-	print('\nWarning: Accurate absolute brightness temperatures depend on having a complete spectral catalog to calcualte  an accurate partition function.  Below is the value that is calcualted at 300 K from the current catalog.  If this is not accurate, the results need to be adjusted accordingly.\n')
-	print('Q(300) = {:.0f}' .format(Q))
+# 	print('\nWarning: Accurate absolute brightness temperatures depend on having a complete spectral catalog to calcualte  an accurate partition function.  Below is the value that is calcualted at 300 K from the current catalog.  If this is not accurate, the results need to be adjusted accordingly.\n')
+# 	print('Q(300) = {:.0f}' .format(Q))
 	
 	sijmu = (exp(np.float64(-(elower/0.695)/CT)) - exp(np.float64(-(eupper/0.695)/CT)))**(-1) * ((10**logint)/frequency) * ((4.16231*10**(-5))**(-1)) * Q
 	
