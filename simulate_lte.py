@@ -2538,7 +2538,7 @@ def print_lines(mol='current',thresh=0.001):
 		
 				gJ = 2*qn1[y][0] + 1
 		
-				print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {}' .format(frequency[y][0],int_tmp[x],qn_string,eupper[y][0],gJ))
+				print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {}' .format(frequency[y][0],int_tmp[x],qn_string,eupper[y][0]/0.695,gJ))
 		
 	else:
 	
@@ -2625,7 +2625,7 @@ def print_lines(mol='current',thresh=0.001):
 		
 				gJ = 2*qn1[y][0] + 1
 			
-				print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {}' .format(frequency_tmp[y][0],int_tmp[x],qn_string,eupper_tmp[y][0],gJ))
+				print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {}' .format(frequency_tmp[y][0],int_tmp[x],qn_string,eupper_tmp[y][0]/0.695,gJ))
 				
 	for x in range(len(print_array)):
 	
