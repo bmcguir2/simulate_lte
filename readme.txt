@@ -4,7 +4,7 @@
 #                                                   #
 #####################################################
 
-Last Updated: Jan 10, 2017
+Last Updated: Sept 26, 2017
 
 This program is designed to read molecular data from an SPCAT formatted catalog file, and simulate a spectrum of the molecule, given a variety of parameters.  It can provide stick spectra or Gaussian simulations (at some computational expense for large numbers of lines).  It can plot those spectra over a laboratory or observational spectrum.  Simulations can be stored into memory, and a combined simulation of all molecules can be generated and displayed.  Simulations can be written out to and ascii file.  The current state of the program is written to a (human-readable) output file (default: last.results), and manual saves can also be performed.  The program can restore to the state of any save file, if the appropriate catalogs are present as well.
 
@@ -12,23 +12,25 @@ The default simulation parameters are:
 
 Temperature = 300 K
 LSR Velocity = 0.0 km/s
-Intensity Scaling Factor: 1.0
+Column Density: 1E13 cm-2
 Lower Limit Cut-off for Simulation: none
 Upper Limit Cut-off for Simulation: none
 Linewidth: 5.0 km/s
 Temperature Catalog was Simulated At: 300 K
 Simulate Gaussian Profiles? True
-Thermal Continuum: none
+Thermal Continuum: 2.7
+RMS: none
+Simulation Resolution: 10 kHz
 
-For the Gaussian simulations, the program is hard-coded to provide simulations at +/- 10 FWHM from the line center, and with a resolution that provides 15 points across the FWHM.
+Setting the RMS will cutoff all simulations that have peak intensities an order of magnitude below the RMS.
+
+For the Gaussian simulations, the program is hard-coded to provide simulations at +/- 10 FWHM from the line center.  By default, with no observations or laboratory data loaded, it simulates at 10 kHz.  If data are loaded, the resolution is set to the resolution of the loaded data. 
 
 Be warned!  The lower limits and upper limits will need to be adjusted for any sufficiently-complex catalog.  You can simulate the full CO catalog, for example, but the full glycolaldehyde catalog would take a few hours.  If the simulation takes more than ~30 seconds, there's a warning that pops up and gives an estimate for how much longer it will take.  This estimate is probably pretty poor.  Also bear in mind that this simulation will likely be performed many times as you adjust parameters, so anything over a few seconds could get pretty tedious.
 
-It is imperative for accurate temperature scaling that the catalogs used either be simulated at 300 K (the default if you get them from JPL or CDMS) OR that you set CT to the appropriate value BEFORE loading in the catalog.
+The program can now handle all known quantum number format issues, but edge cases may still arise.
 
-For a select few catalogs which use odd notation for quantum numbers (+/-), the program won't be able to parse them.  You can get around this by manually adding an exception for that particular catalog, along with a calculation of the partition function from a polynomial fit.  You can see how this is done in calc_q.
-
-Finally, note that the program is calculating partition functions on demand from the catalogs, and only considering lines within the cutoffs.  That means that the absolute value of these partition functions is almost certainly not correct.  This has no effect on the accuracy of the relative intensities of the lines for a single molecule. However, one cannot compare the intensities between two molecules accurately using this method.
+Finally, note that the program is calculating partition functions on demand from the catalogs, and only considering lines within the cutoffs.  That means that the absolute value of these partition functions is almost certainly not correct.  This has no effect on the accuracy of the relative intensities of the lines for a single molecule. However, one cannot compare the intensities between two molecules accurately using this method.  Further, issues with partition functions, and the associated SijMu2 values, have been noted.  
 
 #####################################################
 #                                                   #
@@ -40,7 +42,7 @@ This program is designed to run from inside iPython.  You can get some help on a
 
 Load the program into iPython.
 
-> %run -i viewspectrum.py
+> %run -i simulate_lte.py
 
 Set the lower and upper limits (no, seriously) to x and y MHz.  These can be single values (either int or float), or can be an array of start and stop value pairs.  i.e. for 50 - 55 GHz and 60 - 65 GHz, specify ll = [50000,60000] ul = [55000,65000]. 
 
@@ -55,6 +57,10 @@ Compare the simulation to some observations or laboratory data you have in ascii
 
 > read_obs('x')
 
+If you've read an observation file in, you can have the program detect and set limits automatically:
+
+> autoset_limits()
+
 If your observations are in GHz, you can set a flag in the program so that they are read in and appropriately converted to MHz.  This flag will be saved, and any restore will then know to restore properly as well.  Must do this before calling read_obs().  
 
 > use_GHz()
@@ -67,7 +73,7 @@ You can toggle these observations on and off in the plot:
 Now you can modify the parameters and see their effects on your simulation:
 
 > modT(x)	#temperature
-> modS(x)	#linear intensity scaling factor
+> modC(x)	#column density
 > modV(x)	#vlsr
 > moddV(x)	#linewidth
 
@@ -94,7 +100,7 @@ You can see a (not terribly nicely formatted, yet) summary of what you have stor
 If you want to recall what temperature, dV, etc. the stored simulation was at:
 
 > sim['x'].T	#temperature
-> sim['x'].S	#scaling factor
+> sim['x'].C	#column density
 etc.
 
 Once stored, you can overplot that simulation back onto the current plot:
@@ -131,6 +137,10 @@ Then, overplot the result with a special function, which ensure it's in a color 
 
 > overplot_sum()
 
+If you want to see how well your fit is doing, you can see a residuals plot:
+
+> plot_residuals()
+
 If you need to change the legend on the figure, you can do that, too, by making it x number of columns, and with a font-size lsize, which can be a float, int, or a string (see help file for possible options for strings).
 
 > fix_legend(x,lsize)
@@ -139,8 +149,18 @@ If you want to clear an over-plotted spectrum x back off the plot, you can do th
 
 > clear_line('x')
 
-Finally, if you want to save a simulation to an output ascii file output_file, you can do that.  Use 'current' for the active simulation, 'sum' for the summation, or the name of the stored simulation for y:
+If you want to save a simulation to an output ascii file output_file, you can do that.  Use 'current' for the active simulation, 'sum' for the summation, or the name of the stored simulation for y:
 
 > write_spectrum('y','output_file')
+
+You can check the value of Q that the program has calculated at a given temperature x:
+
+> check_Q(x)
+
+If you want to see detailed information on the lines present in your data, you can have them printed to the terminal:
+
+> print_lines(mol='name',thres=x)
+
+If you give no arguments, then by default it prints all lines above 1 mK in the current simulation.  You can specify a name (mol='methanol') for example that corresponds to a name in your stored simulations to access that directly.  You can also specify a new threshold value in K to cut off at.  Note that this process requires re-simulating, and so may take time if the simulation took a while the first time.
 
 That's it!  If you find any issues, please let me know.
