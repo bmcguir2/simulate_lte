@@ -1547,27 +1547,10 @@ def overplot(x,cchoice=None):
 def load_mol(x,format='spcat'):
 
 	'''
-	loads a new molecule into the system.  Make sure to store the old molecule simulation first, if you want to get it back.  The current graph will be updated with the new molecule.  Catalog file must be given as a string.  Simulation will begin with the same T, dV, S, vlsr as previous, so change those first if you want.
+	loads a new molecule into the system.  Make sure to store the old molecule simulation first, if you want to get it back.  The current graph will be updated with the new molecule.  Catalog file must be given as a string.  Simulation will begin with the same T, dV, C, vlsr as previous, so change those first if you want.
 	'''
 
-	global frequency,logint,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,first_run,tbg,sijmu,gauss
-	
-# 	close()
-# 	
-# 	if labels_flag == True:	
-# 		try:
-# 			clear_line('current')
-# 			labels_off()
-# 		except:
-# 			pass
-# 		labels_on()
-# 		
-# 	else:
-# 		try:
-# 			clear_line('current')
-# 			labels_off()
-# 		except:
-# 			pass		
+	global frequency,logint,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,first_run,tbg,sijmu,gauss		
 	
 	current = x
 	
@@ -1611,18 +1594,10 @@ def load_mol(x,format='spcat'):
 	tmp_freq += (-vlsr)*tmp_freq/ckm
 	
 	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file)
-	
-# 	print('\nWarning: Accurate absolute brightness temperatures depend on having a complete spectral catalog to calcualte  an accurate partition function.  Below is the value that is calcualted at 300 K from the current catalog.  If this is not accurate, the results need to be adjusted accordingly.\n')
-# 	print('Q(300) = {:.0f}' .format(Q))
-	
+
 	sijmu = (exp(np.float64(-(elower/0.695)/CT)) - exp(np.float64(-(eupper/0.695)/CT)))**(-1) * ((10**logint)/frequency) * ((4.16231*10**(-5))**(-1)) * Q
 	
 	freq_sim,int_sim=run_sim(tmp_freq,intensity,T,dV,C)
-	
-	#now make some labels in case we want to add them to the plot later
-	
-# 	qn_lower = [qn1,qn2,qn3,qn4,qn5,qn6]
-# 	qn_upper = [qn7,qn8,qn9,qn10,qn11,qn12]
 	
 	if gauss == True:
 	
@@ -1663,13 +1638,6 @@ def load_mol(x,format='spcat'):
 		warnings.simplefilter('ignore')
 		ax.legend()
 	fig.canvas.draw()	
-	
-# 	if labels_flag == True:
-# 	
-# 		labels_off()
-# 		labels_on()
-		
-	make_plot()
 		
 	save_results('last.results')
 	
