@@ -1637,34 +1637,17 @@ def load_mol(x,format='spcat'):
 		freq_stick = np.asarray([freq_sim])
 		int_stick = np.asarray([int_sim])
 		
-# 	if labels_flag == True:
-# 		labels_off()
-# 		labels_flag = True
-# 	else:
-# 		labels_off()	
-# 	
-# 	labels = []
-# 	
-# 	for x in range(len(int_stick)):
-# 	
-# 		tmp_u_qns = ''
-# 		tmp_l_qns = ''
-# 		
-# 		for y in range(qns):
-# 		
-# 			tmp_u_qns += str(qn_upper[y][x]) + ','
-# 			tmp_l_qns += str(qn_lower[y][x]) + ','
-# 			
-# 		tmp_u_qns = tmp_u_qns[:-1]
-# 		tmp_l_qns = tmp_l_qns[:-1]
-# 		
-# 		tmp_qns = tmp_u_qns + ' -> ' + tmp_l_qns 
-# 		
-# 		tmp_text = '{}, Eu = {:.2f} K' .format(tmp_qns,eupper[x])
-# 			
-# 		tmp_label = ax.annotate(tmp_text, xy = (freq_stick[x],int_stick[x]), xytext = (freq_stick[x],int_stick[x]*1.05), rotation=90, horizontalalignment = 'center', verticalalignment='bottom', color='green')
-# 		
-# 		labels.append(tmp_label)				
+
+	if first_run == True:
+		make_plot()
+		first_run = False
+		return 
+	else:
+		try:
+			plt.get_fignums()[0]
+		except:	
+			make_plot()
+			return 			
 		
 	#if there is a plot open, we just update the current simulation
 	
@@ -1930,8 +1913,8 @@ def restore(x):
 	
 	#close the old graph
 	
-	make_plot()
-	close()
+# 	make_plot()
+# 	close()
 	
 	#empty out the previously-stored simulations
 	
