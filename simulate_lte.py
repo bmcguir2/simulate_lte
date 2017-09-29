@@ -2622,9 +2622,9 @@ def gauss_func(x, dT, v, dV):
 	
 	return G
 
-#gauss_fit does a Gaussian fit on lines in the data, specified in tuples: p = [[dT1,v1,dV1],[dT2,v2,dV2],...] where dT1,v1,dV1 etc are the initial guesses for the intensity, line center, and fwhm of the lines.  dT is in whatever units are being used in the observations, v is in whatever units are being used in the observations, and dV is in km/s.
+#gauss_fit does a Gaussian fit on lines in the data, specified in tuples: p = [[dT1,v1,dV1],[dT2,v2,dV2],...] where dT1,v1,dV1 etc are the initial guesses for the intensity, line center, and fwhm of the lines.  dT is in whatever units are being used in the observations, v is in whatever units are being used in the observations, and dV is in km/s.  By default, the amplitude is unconstrained, the center frequency is constrained to within 5 MHz of the guess, and the linewidth is constrained to within 20% of the guess.  These can be changed.
 
-def gauss_fit(p,plot=True):
+def gauss_fit(p,plot=True,dT_bound=np.inf,v_bound=5.0,dV_bound=0.2):
 
 	data = [freq_obs,int_obs]
 	
@@ -2636,20 +2636,29 @@ def gauss_fit(p,plot=True):
 		
 	for x in range(len(p)):
 	
-		temp = curve_fit(gauss_func, data[0], data[1], p0 = p[x])
+		temp = curve_fit(gauss_func, data[0], data[1], p0 = p[x], bounds=([-dT_bound,p[x][1]-v_bound,p[x][2]*(1-dV_bound)],[dT_bound,p[x][1]+v_bound,p[x][2]*(1+dV_bound)]))
 		
 		coeff.append(temp[0])
 		var_matrix.append(temp[1])
 		err_matrix.append(np.sqrt(np.diag(temp[1])))
 		
 		fit += gauss_func(data[0], coeff[x][0], coeff[x][1], coeff[x][2])
-		
+
 	if plot == True:
 	
-		plt.plot(data[0],data[1])
-		plt.plot(data[0],fit,color='red')
+		try:
+			plt.get_fignums()[0]
+		except:	
+			make_plot()
+					
+		clear_line('Gauss Fit')
 	
-		plt.show()
+		lines['Gauss Fit'] = ax.plot(data[0],fit,color='cyan',label='Gauss Fit',linestyle= '-', gid='gfit', zorder = 50000)
+ 		
+		with warnings.catch_warnings():
+			warnings.simplefilter('ignore')
+			ax.legend()
+		fig.canvas.draw()		
 	
 	print('Gaussian Fit Results to {} Lines' .format(len(p)))
 	print('{:<20} \t {:<10} \t {:<10}' .format('Line Center','dT', 'dV'))
