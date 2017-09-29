@@ -19,6 +19,7 @@
 # 3.0 - adds residual plotting ability
 # 3.1 - adds residual saving ability
 # 3.3 - removes labels (broken on some machines); adds ability to print out line information
+# 3.4 - adds ability to do Gaussian fitting of data in the program
 
 #############################################################
 #							Preamble						#
@@ -42,9 +43,10 @@ from matplotlib.ticker import AutoMinorLocator
 import matplotlib.pyplot as plt
 import itertools
 from datetime import datetime
+from scipy.optimize import curve_fit
 #warnings.filterwarnings('error')
 
-version = 3.3 
+version = 3.4 
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -117,9 +119,25 @@ res_kms = False #if res_kms is set to True, then the resolution of the Gaussian 
 
 res = 0.01 #resolution used in Gaussian simulation if res_kHz or res_kms is set to True.
 
-# labels = [] #will hold line labels
-# 
-# labels_flag = False #says whether the labels are currently plotted or not.
+sim = {} #dictionary to hold stored simulations
+
+lines = {} #dictionary to hold matplotlib lines
+
+freq_obs = [] #to hold laboratory or observational spectra
+int_obs = []
+
+freq_sim = [] #to hold simulated spectra
+int_sim = [] 
+
+freq_sum = [] #to hold combined spectra
+int_sum = []
+
+freq_resid = [] #to hold residual spectra
+int_resid = []
+current = catalog_file
+
+colors = itertools.cycle(['#ff8172','#514829','#a73824','#7b3626','#a8ac87','#8c8e64','#974710','#d38e20','#ce9a3a','#ae7018','#ac5b14','#64350f','#b18f59','#404040','#791304','#1f2161','#171848','#3082fe','#2c5b5e','#390083','#5c65f8','#6346fa','#3c3176','#1cf6ba','#c9bcf0','#90edfc','#3fb8ee','#b89b33','#e7d17b'])
+styles = itertools.cycle(['-','--','-.',':'])
 
 #############################################################
 #							Functions						#
@@ -2586,8 +2604,65 @@ def print_lines(mol='current',thresh=0.001):
 		
 		gauss = True	
 		
+#gauss_func is a model gaussian function to be used with gauss_fit below
+
+def gauss_func(x, dT, v, dV):
+
+	#get the FWHM in frequency space here
 		
+	df = dV*v/ckm
+	
+	#convert to c
+	
+	c = df/2.35482
+	
+	#return the Gaussian value
+	
+	G = dT*np.exp(- ((x-v)**2/(2*c**2)))
+	
+	return G
+
+#gauss_fit does a Gaussian fit on lines in the data, specified in tuples: p = [[dT1,v1,dV1],[dT2,v2,dV2],...] where dT1,v1,dV1 etc are the initial guesses for the intensity, line center, and fwhm of the lines.  dT is in whatever units are being used in the observations, v is in whatever units are being used in the observations, and dV is in km/s. The default is to fit the current observational data, but it can be changed if needed.
+
+def gauss_fit(p,data=[freq_obs,int_obs],plot=True):
+	
+	coeff = []
+	var_matrix = []	
+	err_matrix = []
+	fit = np.copy(data[0])
+	fit *= 0.0
 		
+	for x in range(len(p)):
+	
+		temp = curve_fit(gauss_func, data[0], data[1], p0 = p[x])
+		
+		coeff.append(temp[0])
+		var_matrix.append(temp[1])
+		err_matrix.append(np.sqrt(np.diag(temp[1])))
+		
+		fit += gauss_func(data[0], coeff[x][0], coeff[x][1], coeff[x][2])
+		
+	if plot == True:
+	
+		plt.plot(data[0],data[1])
+		plt.plot(data[0],fit,color='red')
+	
+		plt.show()
+	
+	print('Gaussian Fit Results to {} Lines' .format(len(p)))
+	print('{:<20} \t {:<10} \t {:<10}' .format('Line Center','dT', 'dV'))
+		
+	for x in range(len(p)):
+	
+		dT_temp = coeff[x][0]
+		v_temp = coeff[x][1]
+		dV_temp = coeff[x][2]
+		
+		dT_err = err_matrix[x][0]
+		v_err = err_matrix[x][1]
+		dV_err = err_matrix[x][2]
+		
+		print('{:<.4f}({:<.4f}) \t {:^.3f}({:^.3f}) \t {:^.3f}({:^.3f})' .format(v_temp,v_err,dT_temp,dT_err,dV_temp,dV_err))
 		
 
 #############################################################
@@ -2625,25 +2700,7 @@ class Molecule(object):
 #							Run Program						#
 #############################################################
 
-sim = {} #dictionary to hold stored simulations
 
-lines = {} #dictionary to hold matplotlib lines
-
-freq_obs = [] #to hold laboratory or observational spectra
-int_obs = []
-
-freq_sim = [] #to hold simulated spectra
-int_sim = [] 
-
-freq_sum = [] #to hold combined spectra
-int_sum = []
-
-freq_resid = [] #to hold residual spectra
-int_resid = []
-current = catalog_file
-
-colors = itertools.cycle(['#ff8172','#514829','#a73824','#7b3626','#a8ac87','#8c8e64','#974710','#d38e20','#ce9a3a','#ae7018','#ac5b14','#64350f','#b18f59','#404040','#791304','#1f2161','#171848','#3082fe','#2c5b5e','#390083','#5c65f8','#6346fa','#3c3176','#1cf6ba','#c9bcf0','#90edfc','#3fb8ee','#b89b33','#e7d17b'])
-styles = itertools.cycle(['-','--','-.',':'])
 
 make_plot()
 
