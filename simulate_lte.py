@@ -2622,9 +2622,11 @@ def gauss_func(x, dT, v, dV):
 	
 	return G
 
-#gauss_fit does a Gaussian fit on lines in the data, specified in tuples: p = [[dT1,v1,dV1],[dT2,v2,dV2],...] where dT1,v1,dV1 etc are the initial guesses for the intensity, line center, and fwhm of the lines.  dT is in whatever units are being used in the observations, v is in whatever units are being used in the observations, and dV is in km/s. The default is to fit the current observational data, but it can be changed if needed.
+#gauss_fit does a Gaussian fit on lines in the data, specified in tuples: p = [[dT1,v1,dV1],[dT2,v2,dV2],...] where dT1,v1,dV1 etc are the initial guesses for the intensity, line center, and fwhm of the lines.  dT is in whatever units are being used in the observations, v is in whatever units are being used in the observations, and dV is in km/s.
 
-def gauss_fit(p,data=[freq_obs,int_obs],plot=True):
+def gauss_fit(p,plot=True):
+
+	data = [freq_obs,int_obs]
 	
 	coeff = []
 	var_matrix = []	

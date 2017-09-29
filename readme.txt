@@ -165,8 +165,8 @@ If you give no arguments, then by default it prints all lines above 1 mK in the 
 
 You can now do Gaussian fitting to the lines in your spectrum right in the program!
 
-> gauss_fit(p,data=[freq_obs,int_obs],plot=True)
+> gauss_fit(p,plot=True)
 
-Here, p needs to be a list of lists containing initial guesses of fitting parameters as follows: [[dT1,v1,dV1],[dT2,v2,dV2],...].  If you only have one line to fit, p = [[dT,v,dV]].  The amplitude and width aren't super sensitive, but the center frequency can be a little touchy.  By default, the data that will be fit to are the observations, but you can change that if you want.  By default, the function will plot the results.  You also get a printout in the terminal with errors for each line!
+Here, p needs to be a list of lists containing initial guesses of fitting parameters as follows: [[dT1,v1,dV1],[dT2,v2,dV2],...].  If you only have one line to fit, p = [[dT,v,dV]].  The amplitude and width aren't super sensitive, but the center frequency can be a little touchy.  By default, the function will plot the results.  You also get a printout in the terminal with errors for each line!
 
 That's it!  If you find any issues, please let me know.
