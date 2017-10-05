@@ -1389,11 +1389,18 @@ def read_obs(x):
 		freq_obs[:] = [x*1000.0 for x in freq_obs]
 		
 	res = abs(freq_obs[1]-freq_obs[0])	
+	
+	clear_line('obs')
 		
 	try:		
 		lines['obs'] = 	ax.plot(freq_obs,int_obs,color = 'black',label='obs',zorder=0)
 	except:
 		return
+		
+	with warnings.catch_warnings():
+		warnings.simplefilter('ignore')
+		ax.legend()
+	fig.canvas.draw()	
 		
 #close closes the currently open plot
 
@@ -1571,6 +1578,8 @@ def load_mol(x,format='spcat'):
 	global frequency,logint,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,first_run,tbg,sijmu,gauss		
 	
 	current = x
+	
+	clear_line('current')
 	
 	catalog_file = x
 	
@@ -2625,6 +2634,10 @@ def gauss_func(x, dT, v, dV):
 #gauss_fit does a Gaussian fit on lines in the data, specified in tuples: p = [[dT1,v1,dV1],[dT2,v2,dV2],...] where dT1,v1,dV1 etc are the initial guesses for the intensity, line center, and fwhm of the lines.  dT is in whatever units are being used in the observations, v is in whatever units are being used in the observations, and dV is in km/s.  By default, the amplitude is unconstrained, the center frequency is constrained to within 5 MHz of the guess, and the linewidth is constrained to within 20% of the guess.  These can be changed.
 
 def gauss_fit(p,plot=True,dT_bound=np.inf,v_bound=5.0,dV_bound=0.2):
+
+	'''
+	#gauss_fit does a Gaussian fit on lines in the data, specified in tuples: p = [[dT1,v1,dV1],[dT2,v2,dV2],...] where dT1,v1,dV1 etc are the initial guesses for the intensity, line center, and fwhm of the lines.  dT is in whatever units are being used in the observations, v is in whatever units are being used in the observations, and dV is in km/s.  By default, the amplitude is unconstrained, the center frequency is constrained to within 5 MHz of the guess, and the linewidth is constrained to within 20% of the guess.  These can be changed.
+	'''
 
 	data = [freq_obs,int_obs]
 	
