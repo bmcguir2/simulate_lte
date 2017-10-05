@@ -1579,7 +1579,10 @@ def load_mol(x,format='spcat'):
 	
 	current = x
 	
-	clear_line('current')
+	try:
+		clear_line('current')
+	except:	
+		pass	
 	
 	catalog_file = x
 	
