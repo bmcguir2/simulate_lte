@@ -2431,7 +2431,7 @@ def plot_residuals():
 
 #print_lines will print out the catalog info on lines that are above a certain threshold for a molecule.  The default just prints out the current lines above a standard 1 mK threshold.		
 
-def print_lines(mol='current',thresh=0.001):
+def print_lines(mol='current',thresh=0.001,rest=True):
 
 	global gauss
 	
@@ -2519,8 +2519,16 @@ def print_lines(mol='current',thresh=0.001):
 					qn_string = '{:>2} {: >3} {: >3} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3} {: >3} {: >3}' .format(qn1[y][0],qn2[y][0],qn3[y][0],qn4[y][0],qn5[y][0],qn6[y][0],qn7[y][0],qn8[y][0],qn9[y][0],qn10[y][0],qn11[y][0],qn12[y][0])							
 		
 				gJ = 2*qn1[y][0] + 1
+				
+				if rest=False:
+				
+					frequency_tmp_shift -= vlsr*frequency[y][0]/3E5				
 		
-				print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {}' .format(frequency[y][0],int_tmp[x],qn_string,eupper[y][0]/0.695,gJ))
+					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper[y][0]/0.695,gJ))
+					
+				else:
+				
+					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {}' .format(frequency[y][0],int_tmp[x],qn_string,eupper[y][0]/0.695,gJ))
 		
 	else:
 	
@@ -2606,8 +2614,16 @@ def print_lines(mol='current',thresh=0.001):
 					qn_string = '{:>2} {: >3} {: >3} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3} {: >3} {: >3}' .format(qn1[y][0],qn2[y][0],qn3[y][0],qn4[y][0],qn5[y][0],qn6[y][0],qn7[y][0],qn8[y][0],qn9[y][0],qn10[y][0],qn11[y][0],qn12[y][0])							
 		
 				gJ = 2*qn1[y][0] + 1
+				
+				if rest=False:
+				
+					frequency_tmp_shift -= vlsr_tmp*frequency_tmp[y][0]/3E5
 			
-				print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {}' .format(frequency_tmp[y][0],int_tmp[x],qn_string,eupper_tmp[y][0]/0.695,gJ))
+					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper_tmp[y][0]/0.695,gJ))
+				
+				else:
+				
+					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {}' .format(frequency_tmp[y][0],int_tmp[x],qn_string,eupper_tmp[y][0]/0.695,gJ))
 				
 	for x in range(len(print_array)):
 	
