@@ -159,9 +159,9 @@ You can check the value of Q that the program has calculated at a given temperat
 
 If you want to see detailed information on the lines present in your data, you can have them printed to the terminal:
 
-> print_lines(mol='name',thres=x)
+> print_lines(mol='name',thres=x,rest=True)
 
-If you give no arguments, then by default it prints all lines above 1 mK in the current simulation.  You can specify a name (mol='methanol') for example that corresponds to a name in your stored simulations to access that directly.  You can also specify a new threshold value in K to cut off at.  Note that this process requires re-simulating, and so may take time if the simulation took a while the first time.
+If you give no arguments, then by default it prints all lines above 1 mK in the current simulation.  You can specify a name (mol='methanol') for example that corresponds to a name in your stored simulations to access that directly.  You can also specify a new threshold value in K to cut off at.  By specifying rest=False, the lines will be shifted by the vlsr, rather than printing the rest frequencies.  Note that this process requires re-simulating, and so may take time if the simulation took a while the first time.
 
 You can now do Gaussian fitting to the lines in your spectrum right in the program!
 
