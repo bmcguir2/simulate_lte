@@ -20,6 +20,7 @@
 # 3.1 - adds residual saving ability
 # 3.3 - removes labels (broken on some machines); adds ability to print out line information
 # 3.4 - adds ability to do Gaussian fitting of data in the program
+# 3.5 - adds ability to mass-generate a p-list for gauss fitting
 
 #############################################################
 #							Preamble						#
@@ -46,7 +47,7 @@ from datetime import datetime
 from scipy.optimize import curve_fit
 #warnings.filterwarnings('error')
 
-version = 3.4 
+version = 3.5
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -2691,6 +2692,29 @@ def gauss_fit(p,plot=True,dT_bound=np.inf,v_bound=5.0,dV_bound=0.2):
 		
 		print('{:<.4f}({:<.4f}) \t {:^.3f}({:^.3f}) \t {:^.3f}({:^.3f})' .format(v_temp,v_err,dT_temp,dT_err,dV_temp,dV_err))
 		
+
+#make_gauss_params generates a parameters list for gaussian fitting.  Takes an input txt file which is first column frequencies and second column intensities.  
+
+def make_gauss_params(file,vlsr,dV):
+
+	p = []
+
+	with open(file) as input:
+
+		for line in input:
+	
+			p_indiv = []
+	
+			freq = float(line.split()[0])
+			freq -= vlsr*freq/3E5
+			
+			p_indiv.append(float(line.split()[1].strip('\n')))
+			p_indiv.append(freq)			
+			p_indiv.append(float(dV))
+		
+			p.append(p_indiv)
+		
+	return p
 
 #############################################################
 #							Classes for Storing Results		#
