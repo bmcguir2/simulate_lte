@@ -2520,9 +2520,9 @@ def print_lines(mol='current',thresh=0.001,rest=True):
 		
 				gJ = 2*qn1[y][0] + 1
 				
-				if rest=False:
+				if rest==False:
 				
-					frequency_tmp_shift -= vlsr*frequency[y][0]/3E5				
+					frequency_tmp_shift = frequency[y][0] - vlsr*frequency[y][0]/3E5				
 		
 					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper[y][0]/0.695,gJ))
 					
@@ -2615,9 +2615,9 @@ def print_lines(mol='current',thresh=0.001,rest=True):
 		
 				gJ = 2*qn1[y][0] + 1
 				
-				if rest=False:
+				if rest==False:
 				
-					frequency_tmp_shift -= vlsr_tmp*frequency_tmp[y][0]/3E5
+					frequency_tmp_shift = frequency_tmp[y][0] - vlsr_tmp*frequency_tmp[y][0]/3E5
 			
 					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper_tmp[y][0]/0.695,gJ))
 				
