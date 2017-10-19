@@ -167,6 +167,10 @@ You can now do Gaussian fitting to the lines in your spectrum right in the progr
 
 > gauss_fit(p,plot=True)
 
-Here, p needs to be a list of lists containing initial guesses of fitting parameters as follows: [[dT1,v1,dV1],[dT2,v2,dV2],...].  If you only have one line to fit, p = [[dT,v,dV]].  The amplitude and width aren't super sensitive, but the center frequency can be a little touchy.  By default, the amplitude is unconstrained, the center frequency is constrained to within 5 MHz of the guess, and the linewidth is constrained to within 20% of the guess.  These can be changed. By default, the function will plot the results.  You also get a printout in the terminal with errors for each line!  
+Here, p needs to be a list of lists containing initial guesses of fitting parameters as follows: [[dT1,v1,dV1],[dT2,v2,dV2],...].  If you only have one line to fit, p = [[dT,v,dV]].  The amplitude and width aren't super sensitive, but the center frequency can be a little touchy.  By default, the amplitude is unconstrained, the center frequency is constrained to within 5 MHz of the guess, and the linewidth is constrained to within 20% of the guess.  These can be changed. By default, the function will plot the results.  You also get a printout in the terminal with errors for each line!
+
+> make_gauss_params(file,vlsr,dV)
+
+Generates a parameters list (p) for gaussian fitting.  Takes an input txt file which is first column frequencies and second column intensities, and a vlsr and dV
 
 That's it!  If you find any issues, please let me know.
