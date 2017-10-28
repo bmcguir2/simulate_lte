@@ -173,4 +173,8 @@ Here, p needs to be a list of lists containing initial guesses of fitting parame
 
 Generates a parameters list (p) for gaussian fitting.  Takes an input txt file which is first column frequencies and second column intensities, and a vlsr and dV
 
+> jy_to_k(bmaj,bmin)
+
+Converts the current observations from Jy/beam to K, given a beam size bmaj and bmin in arcseconds.  This assumes the beam size is constant over the entire range; so if you've loaded in observations from multiple cubes that have different sizes, it's not going to be completely accurate.  It would be better to load in one cube at a time, covert it, and write it back out
+
 That's it!  If you find any issues, please let me know.
