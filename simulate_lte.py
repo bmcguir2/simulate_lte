@@ -21,6 +21,7 @@
 # 3.3 - removes labels (broken on some machines); adds ability to print out line information
 # 3.4 - adds ability to do Gaussian fitting of data in the program
 # 3.5 - adds ability to mass-generate a p-list for gauss fitting
+# 3.6 - adds ability to convert the observations from Jy/beam to K, or K to Jy/beam.
 
 #############################################################
 #							Preamble						#
@@ -47,7 +48,7 @@ from datetime import datetime
 from scipy.optimize import curve_fit
 #warnings.filterwarnings('error')
 
-version = 3.5
+version = 3.6
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -923,6 +924,11 @@ def write_spectrum(x,output_file):
 		freq_tmp = freq_resid
 		int_tmp = int_resid
 		
+	elif x == 'obs':
+	
+		freq_tmp = freq_obs
+		int_tmp = int_obs
+				
 	else:
 	
 		try:
@@ -1390,6 +1396,14 @@ def read_obs(x):
 		freq_obs[:] = [x*1000.0 for x in freq_obs]
 		
 	res = abs(freq_obs[1]-freq_obs[0])	
+	
+	if res == 0.0:
+	
+		res = abs(freq_obs[2]-freq_obs[1])
+		
+	if res == 0.0:
+	
+		print('First three frequency data points for the observations are identical; resolution could not be automatically determined and has been set to 10 kHz by default.  Modify this by issuing res = X, where X is the desired resolution in MHz')
 	
 	clear_line('obs')
 		
@@ -2731,6 +2745,32 @@ def make_gauss_params(file,vlsr,dV):
 			p.append(p_indiv)
 		
 	return p
+
+#jy_to_k converts the current observations from Jy/beam to K, given a beam size bmaj and bmin in arcseconds.  This assumes the beam size is constant over the entire range; so if you've loaded in observations from multiple cubes that have different sizes, it's not going to be completely accurate.  It would be better to load in one cube at a time, covert it, and write it back out. 
+
+def jy_to_k(bmaj,bmin):
+
+	'''
+	#jy_to_k converts the current observations from Jy/beam to K, given a beam size bmaj and bmin in arcseconds.  This assumes the beam size is constant over the entire range; so if you've loaded in observations from multiple cubes that have different sizes, it's not going to be completely accurate.  It would be better to load in one cube at a time, covert it, and write it back out
+	'''
+
+	global freq_obs,int_obs
+	
+	for x in range(len(int_obs)):
+
+		int_obs[x] *= 1.224*10**6 * int_obs[x] / ((freq_obs[x]/1000)**2 * bmaj * bmin)		
+		
+	clear_line('obs')
+		
+	try:		
+		lines['obs'] = 	ax.plot(freq_obs,int_obs,color = 'black',label='obs',zorder=0)
+	except:
+		return
+		
+	with warnings.catch_warnings():
+		warnings.simplefilter('ignore')
+		ax.legend()
+	fig.canvas.draw()
 
 #############################################################
 #							Classes for Storing Results		#
