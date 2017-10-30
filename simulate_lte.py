@@ -2746,19 +2746,19 @@ def make_gauss_params(file,vlsr,dV):
 		
 	return p
 
-#jy_to_k converts the current observations from Jy/beam to K, given a beam size bmaj and bmin in arcseconds.  This assumes the beam size is constant over the entire range; so if you've loaded in observations from multiple cubes that have different sizes, it's not going to be completely accurate.  It would be better to load in one cube at a time, covert it, and write it back out. 
+#jy_to_k converts the current observations from Jy/beam to K, given a beam size bmaj and bmin in arcseconds, and a center frequency in GHz.  This assumes the beam size is constant over the entire range; so if you've loaded in observations from multiple cubes that have different sizes, it's not going to be completely accurate.  It would be better to load in one cube at a time, covert it, and write it back out. 
 
-def jy_to_k(bmaj,bmin):
+def jy_to_k(bmaj,bmin,freq):
 
 	'''
-	#jy_to_k converts the current observations from Jy/beam to K, given a beam size bmaj and bmin in arcseconds.  This assumes the beam size is constant over the entire range; so if you've loaded in observations from multiple cubes that have different sizes, it's not going to be completely accurate.  It would be better to load in one cube at a time, covert it, and write it back out
+	#jy_to_k converts the current observations from Jy/beam to K, given a beam size bmaj and bmin in arcseconds, and a center frequency in GHz.  This assumes the beam size is constant over the entire range; so if you've loaded in observations from multiple cubes that have different sizes, it's not going to be completely accurate.  It would be better to load in one cube at a time, covert it, and write it back out
 	'''
 
 	global freq_obs,int_obs
 	
 	for x in range(len(int_obs)):
 
-		int_obs[x] *= 1.224*10**6 * int_obs[x] / ((freq_obs[x]/1000)**2 * bmaj * bmin)		
+		int_obs[x] = 1.224*10**6 * int_obs[x] / (freq**2 * bmaj * bmin)		
 		
 	clear_line('obs')
 		
