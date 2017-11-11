@@ -22,6 +22,7 @@
 # 3.4 - adds ability to do Gaussian fitting of data in the program
 # 3.5 - adds ability to mass-generate a p-list for gauss fitting
 # 3.6 - adds ability to convert the observations from Jy/beam to K, or K to Jy/beam.
+# 3.7 - adds ability to simulate double doublets from cavity FTMW
 
 #############################################################
 #							Preamble						#
@@ -48,7 +49,7 @@ from datetime import datetime
 from scipy.optimize import curve_fit
 #warnings.filterwarnings('error')
 
-version = 3.6
+version = 3.7
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -120,6 +121,12 @@ res_kHz = False #if res_kHz is set to True, then the resolution of the Gaussian 
 res_kms = False #if res_kms is set to True, then the resolution of the Gaussian simulation is calculated using the value for res, and units of km/s
 
 res = 0.01 #resolution used in Gaussian simulation if res_kHz or res_kms is set to True.
+
+cavity_ftmw = False #if set to True, simulates doubler doublets from the cavity FTMW. 
+
+cavity_dV = 0.13 #sets the default cavity linewidth to 0.2 km/s
+
+cavity_split = 0.826 #sets the default doppler splitting in the cavity to 0.826 km/s in each direction.
 
 sim = {} #dictionary to hold stored simulations
 
@@ -739,13 +746,15 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file):
 			
 			if 'benzonitrile.cat' in catalog_file.lower() or 'bn_global.cat' in catalog_file.lower():
 			
+				#Goes through and does the adjustments for the nuclear hyperfine splitting (it's being overcounted in the catalog, needs to be divide by 3), and the spin-statistic degeneracies.
+			
 				if (temp[i][1] % 2 == 0):
 				
-					 Q += 5*(2*J+1)*exp(np.float64(-E/(kcm*T)))
+					 Q += (1/3)*(5/8)*(2*J+1)*exp(np.float64(-E/(kcm*T)))
 					 
 				else:
 				
-					Q += 3*(2*J+1)*exp(np.float64(-E/(kcm*T)))
+					Q += (1/3)*(3/8)*(2*J+1)*exp(np.float64(-E/(kcm*T)))					
 					
 			else:
 		
@@ -806,6 +815,10 @@ def sim_gaussian(int_sim,freq,linewidth):
 	freq_gauss_tmp = []
 	
 	x = 0
+	
+	if cavity_ftmw == True:
+	
+		linewidth = cavity_dV
 
 	while (x < len(int_sim)):
 	
@@ -891,8 +904,20 @@ def sim_gaussian(int_sim,freq,linewidth):
 		l_f = linewidth*freq[x]/ckm #get the FWHM in MHz
 	
 		c = l_f/2.35482
+		
+		#if set up to simulate cavity FTMW doppler doublets, divide the intensity by half, shift each line up and down by the splitting, and make sure to use the correct fwhm.
+		
+		if cavity_ftmw == True:
+		
+			freq_l = freq[x] - (cavity_split*freq[x]/ckm)
+			freq_h = freq[x] + (cavity_split*freq[x]/ckm)
+			
+			int_gauss += 0.5*int_sim[x]*exp(-((freq_gauss - freq_l)**2/(2*c**2)))
+			int_gauss += 0.5*int_sim[x]*exp(-((freq_gauss - freq_h)**2/(2*c**2)))
+						
+		else:
 
-		int_gauss += int_sim[x]*exp(-((freq_gauss - freq[x])**2/(2*c**2)))
+			int_gauss += int_sim[x]*exp(-((freq_gauss - freq[x])**2/(2*c**2)))
 		
 	try:
 		int_gauss[int_gauss > thermal] = thermal

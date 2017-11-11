@@ -177,4 +177,8 @@ Generates a parameters list (p) for gaussian fitting.  Takes an input txt file w
 
 Converts the current observations from Jy/beam to K, given a beam size bmaj and bmin in arcseconds, and a center frequency in GHz.  This assumes the beam size is constant over the entire range; so if you've loaded in observations from multiple cubes that have different sizes, it's not going to be completely accurate.  It would be better to load in one cube at a time, covert it, and write it back out
 
+> cavity_ftmw = True
+
+This will tell the code to enable Cavity FTMW simulation mode, and produce Doppler doublets of every transition, rather than single lines.  It uses two parameters, cavity_dV to set the linewidth of the lines to something reasonable for the instrument (defaults to 0.13 km/s, good in Ne at 15 GHz) and cavity_split to set the Doppler splitting (defaults to 0.826 km/s *in each direction*.  The total splitting between two peaks is 1.652 km/s.  This value good for Ne at 2.5 kTorr backing pressure).
+
 That's it!  If you find any issues, please let me know.
