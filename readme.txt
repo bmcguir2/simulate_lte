@@ -183,7 +183,7 @@ This will tell the code to enable Cavity FTMW simulation mode, and produce Doppl
 
 > load_freqs(man_freqs='',peak=1.0,vlsr=vlsr,dV=dV)
 
-This will plot lines that are provided not from a standard spcat catalog, but rather just a set of frequencies.  The user can specify either a manual array OR a catalog file containing a single column of frequencies (not both), as well as an optional intensity for the lines (defaults to 1.0), a vlsr offset (defaults to current vlsr), and a linewidth (defaults to current linewidth).  Modifying any of these parameters requires re-issuing the entire command.
+This will plot lines that are provided not from a standard spcat catalog, but rather just a set of frequencies.  The user can specify either a manual array OR a catalog file containing a single column of frequencies.  Optional commands are an intensity for the lines (defaults to 1.0), a vlsr offset (defaults to current vlsr), and a linewidth (defaults to current linewidth).  Modifying any of these parameters requires re-issuing the entire command.
 
 > use_lines()
 > use_steps()
