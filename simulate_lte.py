@@ -24,6 +24,7 @@
 # 3.6 - adds ability to convert the observations from Jy/beam to K, or K to Jy/beam.
 # 3.7 - adds ability to simulate double doublets from cavity FTMW
 # 3.8 - adds ability to read in frequencies to plot just as single intensity lines; or to do it manually with a list.  changes default plotting to steps, adds ability to switch back to lines.  
+# 3.9 - adds ability to plot manual catalogs with a velocity offset
 
 #############################################################
 #							Preamble						#
@@ -2819,10 +2820,10 @@ def jy_to_k(bmaj,bmin,freq):
 
 #load_freqs will plot lines that are provided not from a standard spcat catalog, but rather just a set of frequencies.  The user can specify either a manual array OR a catalog file containing a single column of frequencies (not both), as well as an optional intensity for the lines.
 
-def load_freqs(man_freqs='',peak=1.0):
+def load_freqs(man_freqs='',peak=1.0,vlsr=vlsr,dV=dV):
 
 	'''
-	#load_freqs will plot lines that are provided not from a standard spcat catalog, but rather just a set of frequencies.  The user can specify either a manual array OR a catalog file containing a single column of frequencies (not both), as well as an optional intensity for the lines.
+	#load_freqs will plot lines that are provided not from a standard spcat catalog, but rather just a set of frequencies.  The user can specify either a manual array OR a catalog file containing a single column of frequencies (not both), as well as an optional intensity for the lines (defaults to 1.0), a vlsr offset (defaults to current vlsr), and a linewidth (defaults to current linewidth).  Modifying any of these parameters requires re-issuing the entire command.
 	'''	
 
 	global int_man,freq_man
@@ -2852,7 +2853,9 @@ def load_freqs(man_freqs='',peak=1.0):
 			int_tmp.append(peak)	
 			
 	freq_tmp = np.asarray(freq_tmp)
-	int_tmp = np.asarray(int_tmp)			
+	int_tmp = np.asarray(int_tmp)
+	
+	freq_tmp -= vlsr*freq_tmp/ckm			
 			
 	if gauss == True:
 

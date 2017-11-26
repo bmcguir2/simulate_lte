@@ -181,9 +181,9 @@ Converts the current observations from Jy/beam to K, given a beam size bmaj and 
 
 This will tell the code to enable Cavity FTMW simulation mode, and produce Doppler doublets of every transition, rather than single lines.  It uses two parameters, cavity_dV to set the linewidth of the lines to something reasonable for the instrument (defaults to 0.13 km/s, good in Ne at 15 GHz) and cavity_split to set the Doppler splitting (defaults to 0.826 km/s *in each direction*.  The total splitting between two peaks is 1.652 km/s.  This value good for Ne at 2.5 kTorr backing pressure).
 
-> load_freqs(man_freqs='',peak=1.0)
+> load_freqs(man_freqs='',peak=1.0,vlsr=vlsr,dV=dV)
 
-This will plot lines that are provided not from a standard spcat catalog, but rather just a set of frequencies.  The user can specify either a manual array OR a catalog file containing a single column of frequencies (not both) using man_freqs = [a,b,c...] or man_freqs='cat.txt', as well as an optional intensity for the lines (defaults to 1.0).
+This will plot lines that are provided not from a standard spcat catalog, but rather just a set of frequencies.  The user can specify either a manual array OR a catalog file containing a single column of frequencies (not both), as well as an optional intensity for the lines (defaults to 1.0), a vlsr offset (defaults to current vlsr), and a linewidth (defaults to current linewidth).  Modifying any of these parameters requires re-issuing the entire command.
 
 > use_lines()
 > use_steps()
