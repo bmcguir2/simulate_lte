@@ -23,6 +23,7 @@
 # 3.5 - adds ability to mass-generate a p-list for gauss fitting
 # 3.6 - adds ability to convert the observations from Jy/beam to K, or K to Jy/beam.
 # 3.7 - adds ability to simulate double doublets from cavity FTMW
+# 3.8 - adds ability to read in frequencies to plot just as single intensity lines; or to do it manually with a list.  changes default plotting to steps, adds ability to switch back to lines.  
 
 #############################################################
 #							Preamble						#
@@ -49,7 +50,7 @@ from datetime import datetime
 from scipy.optimize import curve_fit
 #warnings.filterwarnings('error')
 
-version = 3.7
+version = 3.8
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -128,6 +129,8 @@ cavity_dV = 0.13 #sets the default cavity linewidth to 0.2 km/s
 
 cavity_split = 0.826 #sets the default doppler splitting in the cavity to 0.826 km/s in each direction.
 
+draw_style = 'steps' #can be toggled on and off for going between drawing steps and drawing lines between points using use_steps() and use_lines()
+
 sim = {} #dictionary to hold stored simulations
 
 lines = {} #dictionary to hold matplotlib lines
@@ -141,9 +144,14 @@ int_sim = []
 freq_sum = [] #to hold combined spectra
 int_sum = []
 
+freq_man = [] #to hold manual (frequency only) spectra
+int_man = []
+
 freq_resid = [] #to hold residual spectra
 int_resid = []
 current = catalog_file
+
+obs_name = ''
 
 colors = itertools.cycle(['#ff8172','#514829','#a73824','#7b3626','#a8ac87','#8c8e64','#974710','#d38e20','#ce9a3a','#ae7018','#ac5b14','#64350f','#b18f59','#404040','#791304','#1f2161','#171848','#3082fe','#2c5b5e','#390083','#5c65f8','#6346fa','#3c3176','#1cf6ba','#c9bcf0','#90edfc','#3fb8ee','#b89b33','#e7d17b'])
 styles = itertools.cycle(['-','--','-.',':'])
@@ -1112,7 +1120,7 @@ def modT(x):
 
 	else:
 
-		lines['current'] = ax.plot(freq_sim,int_sim,color = 'red',label='current',zorder=500)
+		lines['current'] = ax.plot(freq_sim,int_sim,color = 'red',label='current',drawstyle=draw_style,zorder=500)
 		
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
@@ -1153,7 +1161,7 @@ def modC(x):
 
 	else:
 
-		lines['current'] = ax.plot(freq_sim,int_sim,color = 'red',label='current',zorder=500)
+		lines['current'] = ax.plot(freq_sim,int_sim,color = 'red',label='current',drawstyle=draw_style,zorder=500)
 		
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
@@ -1200,7 +1208,7 @@ def moddV(x):
 
 	else:
 
-		lines['current'] = ax.plot(freq_sim,int_sim,color = 'red',label='current',zorder=500)
+		lines['current'] = ax.plot(freq_sim,int_sim,color = 'red',label='current',drawstyle=draw_style,zorder=500)
 		
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
@@ -1241,7 +1249,7 @@ def modVLSR(x):
 
 	else:
 
-		lines['current'] = ax.plot(freq_sim,int_sim,color = 'red',label='current',zorder=500)
+		lines['current'] = ax.plot(freq_sim,int_sim,color = 'red',label='current',drawstyle=draw_style,zorder=500)
 	
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
@@ -1278,6 +1286,8 @@ def make_plot():
 	minorLocator = AutoMinorLocator(5)
 	plt.xlabel('Frequency (MHz)')
 	plt.ylabel('Intensity (K)')
+	plt.title(obs_name)
+	plt.rcParams['axes.labelweight'] = 'bold'
 
 	plt.locator_params(nbins=4) #Use only 4 actual numbers on the x-axis
 	ax.xaxis.set_minor_locator(minorLocator) #Let the program calculate some minor ticks from that
@@ -1287,7 +1297,7 @@ def make_plot():
 	
 	try:
 		freq_obs[0]
-		lines['obs'] = ax.plot(freq_obs,int_obs,color = 'black',label='obs',zorder=0)
+		lines['obs'] = ax.plot(freq_obs,int_obs,color = 'black',label='obs',zorder=0,drawstyle=draw_style)
 	except:
 		pass
 
@@ -1297,7 +1307,7 @@ def make_plot():
 
 	else:
 
-		lines['current'] = ax.plot(freq_sim,int_sim,color = 'red',label='current',zorder=500)	
+		lines['current'] = ax.plot(freq_sim,int_sim,color = 'red',label='current',drawstyle=draw_style,zorder=500)	
 
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
@@ -1367,7 +1377,7 @@ def read_obs(x):
 	reads in observations or laboratory spectra and populates freq_obs and int_obs.  will detect a standard .ispec header from casaviewer export, and will apply a GHz flag if necessary, as well as populating the coords variable with the coordinates from the header.
 	'''
 
-	global spec, coords, GHz, res
+	global spec, coords, GHz, res, obs_name
 
 	spec = x
 
@@ -1441,6 +1451,16 @@ def read_obs(x):
 		warnings.simplefilter('ignore')
 		ax.legend()
 	fig.canvas.draw()	
+	
+	if len(spec.split('.')) > 1:
+		
+		tmp_str = str(spec.split('.')[-1])
+	
+		obs_name = str(spec.strip(tmp_str).strip('.'))
+		
+	else: 
+	
+		obs_name = str(spec)
 		
 #close closes the currently open plot
 
@@ -1541,7 +1561,7 @@ def recall(x):
 
 	else:
 
-		lines['current'] = ax.plot(freq_sim,int_sim,color = 'red',label='current',zorder=500)	
+		lines['current'] = ax.plot(freq_sim,int_sim,color = 'red',label='current',drawstyle=draw_style,zorder=500)	
 		
 	try:
 		plt.get_fignums()[0]	
@@ -1702,7 +1722,7 @@ def load_mol(x,format='spcat'):
 
 	else:
 
-		lines['current'] = ax.plot(freq_sim,int_sim,color = 'red',label='current',zorder=500)	
+		lines['current'] = ax.plot(freq_sim,int_sim,color = 'red',label='current',drawstyle=draw_style,zorder=500)	
 
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
@@ -2796,6 +2816,153 @@ def jy_to_k(bmaj,bmin,freq):
 		warnings.simplefilter('ignore')
 		ax.legend()
 	fig.canvas.draw()
+
+#load_freqs will plot lines that are provided not from a standard spcat catalog, but rather just a set of frequencies.  The user can specify either a manual array OR a catalog file containing a single column of frequencies (not both), as well as an optional intensity for the lines.
+
+def load_freqs(man_freqs='',peak=1.0):
+
+	'''
+	#load_freqs will plot lines that are provided not from a standard spcat catalog, but rather just a set of frequencies.  The user can specify either a manual array OR a catalog file containing a single column of frequencies (not both), as well as an optional intensity for the lines.
+	'''	
+
+	global int_man,freq_man
+	
+	try:
+		clear_line('manual spectra')
+	except:	
+		pass	
+	
+	int_tmp = []
+	freq_tmp = []
+
+	if type(man_freqs) == list:
+	
+		for x in range(len(man_freqs)):
+		
+			freq_tmp.append(man_freqs[x])
+			int_tmp.append(peak)
+			
+	else:
+	
+		tmp_array = read_cat(man_freqs)
+		
+		for x in range(len(tmp_array)):
+		
+			freq_tmp.append(float(tmp_array[x].split()[0].strip()))
+			int_tmp.append(peak)	
+			
+	freq_tmp = np.asarray(freq_tmp)
+	int_tmp = np.asarray(int_tmp)			
+			
+	if gauss == True:
+
+		freq_man,int_man = sim_gaussian(int_tmp,freq_tmp,dV)
+		
+	else:
+
+		freq_man = freq_tmp
+		int_man = int_tmp		
+		
+	if gauss == False:
+
+		lines['manual spectra'] = ax.vlines(freq_man,0,int_man,linestyle = '-',color = 'cyan',label='manual spectra',zorder=500) #Plot sticks from TA down to 0 at each point in freq.
+
+	else:
+
+		lines['manual spectra'] = ax.plot(freq_man,int_man,color = 'cyan',label='manual spectra',drawstyle=draw_style,zorder=500)	
+
+	with warnings.catch_warnings():
+		warnings.simplefilter('ignore')
+		ax.legend()
+	fig.canvas.draw()						
+
+#use_steps and use_lines will swap between drawing lines between points or steps between points as the default for all graphs.  Will update the graph for the obs immediately; molecules will need to be resimulated/re-recalled/re-overplotted/etc.
+
+def use_steps():
+
+	'''
+	use_steps and use_lines will swap between drawing lines between points or steps between points as the default for all graphs.  Will update the graph for the obs immediately; molecules will need to be resimulated/re-recalled/re-overplotted/etc.
+	'''
+
+	global draw_style
+	
+	draw_style = 'steps'
+	
+	clear_line('obs')
+		
+	try:
+		freq_obs[0]
+		lines['obs'] = ax.plot(freq_obs,int_obs,color = 'black',label='obs',zorder=0,drawstyle=draw_style)
+	except:
+		pass
+	
+	with warnings.catch_warnings():
+		warnings.simplefilter('ignore')
+		ax.legend()
+	fig.canvas.draw()	
+	
+def use_lines():
+
+	'''
+	use_steps and use_lines will swap between drawing lines between points or steps between points as the default for all graphs.  Will update the graph for the obs immediately; molecules will need to be resimulated/re-recalled/re-overplotted/etc.
+	'''
+
+	global draw_style
+	
+	draw_style = 'default'
+	
+	clear_line('obs')
+	
+	try:
+		freq_obs[0]
+		lines['obs'] = ax.plot(freq_obs,int_obs,color = 'black',label='obs',zorder=0,drawstyle=draw_style)
+	except:
+		pass	
+	
+	with warnings.catch_warnings():
+		warnings.simplefilter('ignore')
+		ax.legend()
+	fig.canvas.draw()		
+
+#baseline will subtract a polynomial baseline from the spectrum of whatever order is entered as an array.  So, for example, to subtract zeroth order baseline with a static offset of 2.5, issue baseline(2.5) or baseline([2.5]).  To subtract a line of y = mx + b, issue baseline([b,m]).  To go for a larger polynomial, y = ax^3 + bx^2 + cx + d, issue baseline([d,c,b,a]).
+
+def baseline(constants):
+
+	'''
+	baseline will subtract a polynomial baseline from the spectrum of whatever order is entered as an array.  So, for example, to subtract zeroth order baseline with a static offset of 2.5, issue baseline(2.5) or baseline([2.5]).  To subtract a line of y = mx + b, issue baseline([b,m]).  To go for a larger polynomial, y = ax^3 + bx^2 + cx + d, issue baseline([d,c,b,a]).
+	'''
+
+	global int_obs
+	
+	if type(constants) == int or type(constants) == float:
+	
+		constants = [constants]
+	
+	int_base = [0] * len(int_obs)
+	
+	for x in range(len(constants)):
+	
+		for y in range(len(freq_obs)):
+	
+			int_base[y] += constants[x]*freq_obs[y]**x
+			
+	for x in range(len(int_obs)):
+	
+		int_obs[x] -= int_base[x]
+		
+	clear_line('obs')
+	
+	try:
+		lines['obs'] = ax.plot(freq_obs,int_obs,color = 'black',label='obs',zorder=0,drawstyle=draw_style)
+	except:
+		pass
+	
+	with warnings.catch_warnings():
+		warnings.simplefilter('ignore')
+		ax.legend()
+	fig.canvas.draw()				
+	
+		
 
 #############################################################
 #							Classes for Storing Results		#

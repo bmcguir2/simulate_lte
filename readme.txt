@@ -4,7 +4,7 @@
 #                                                   #
 #####################################################
 
-Last Updated: Sept 29, 2017
+Last Updated: Nov 26, 2017
 
 This program is designed to read molecular data from an SPCAT formatted catalog file, and simulate a spectrum of the molecule, given a variety of parameters.  It can provide stick spectra or Gaussian simulations (at some computational expense for large numbers of lines).  It can plot those spectra over a laboratory or observational spectrum.  Simulations can be stored into memory, and a combined simulation of all molecules can be generated and displayed.  Simulations can be written out to and ascii file.  The current state of the program is written to a (human-readable) output file (default: last.results), and manual saves can also be performed.  The program can restore to the state of any save file, if the appropriate catalogs are present as well.
 
@@ -180,5 +180,18 @@ Converts the current observations from Jy/beam to K, given a beam size bmaj and 
 > cavity_ftmw = True
 
 This will tell the code to enable Cavity FTMW simulation mode, and produce Doppler doublets of every transition, rather than single lines.  It uses two parameters, cavity_dV to set the linewidth of the lines to something reasonable for the instrument (defaults to 0.13 km/s, good in Ne at 15 GHz) and cavity_split to set the Doppler splitting (defaults to 0.826 km/s *in each direction*.  The total splitting between two peaks is 1.652 km/s.  This value good for Ne at 2.5 kTorr backing pressure).
+
+> load_freqs(man_freqs='',peak=1.0)
+
+This will plot lines that are provided not from a standard spcat catalog, but rather just a set of frequencies.  The user can specify either a manual array OR a catalog file containing a single column of frequencies (not both) using man_freqs = [a,b,c...] or man_freqs='cat.txt', as well as an optional intensity for the lines (defaults to 1.0).
+
+> use_lines()
+> use_steps()
+
+These will swap between drawing lines between points or steps between points as the default for all graphs.  Will update the current graph for the obs immediately; molecules will need to be resimulated/re-recalled/re-overplotted/etc.
+
+> baseline(constants)
+
+This will subtract a polynomial baseline from the spectrum of whatever order is entered as an array, with the zeroth order term first.  So, for example, to subtract zeroth order baseline with a static offset of 2.5, issue baseline(2.5) or baseline([2.5]).  To subtract a line of y = mx + b, issue baseline([b,m]).  To go for a larger polynomial, y = ax^3 + bx^2 + cx + d, issue baseline([d,c,b,a]).
 
 That's it!  If you find any issues, please let me know.
