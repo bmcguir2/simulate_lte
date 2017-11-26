@@ -51,7 +51,7 @@ from datetime import datetime
 from scipy.optimize import curve_fit
 #warnings.filterwarnings('error')
 
-version = 3.8
+version = 3.9
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
