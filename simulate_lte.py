@@ -25,6 +25,8 @@
 # 3.7 - adds ability to simulate double doublets from cavity FTMW
 # 3.8 - adds ability to read in frequencies to plot just as single intensity lines; or to do it manually with a list.  changes default plotting to steps, adds ability to switch back to lines.  
 # 3.9 - adds ability to plot manual catalogs with a velocity offset
+# 3.91 - minor change to how plots are titled
+# 4.0 - changes the simulation to perform a proper 'radiative transfer' which first calculates an opacity, and then applies the appropriate optical depth correction
 
 #############################################################
 #							Preamble						#
@@ -51,12 +53,13 @@ from datetime import datetime
 from scipy.optimize import curve_fit
 #warnings.filterwarnings('error')
 
-version = 3.9
+version = 4.0
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
 kcm = 0.69503476 #Boltzmann's constant in cm-1/K
 ckm = 2.998*10**5 #speed of light in km/s
+ccm = 2.998*10**10 #speed of light in cm/s
 
 #############################################################
 #							Warning 						#
@@ -925,15 +928,20 @@ def sim_gaussian(int_sim,freq,linewidth):
 			int_gauss += 0.5*int_sim[x]*exp(-((freq_gauss - freq_h)**2/(2*c**2)))
 						
 		else:
-
-			int_gauss += int_sim[x]*exp(-((freq_gauss - freq[x])**2/(2*c**2)))
 		
-	try:
-		int_gauss[int_gauss > thermal] = thermal
-	except TypeError:
-		pass	
+			int_tmp = (T - Tbg)*(1 - np.exp(-int_sim[x]))
+		
+			int_gauss += int_tmp*exp(-((freq_gauss - freq[x])**2/(2*c**2)))
+
+			#int_gauss += int_sim[x]*exp(-((freq_gauss - freq[x])**2/(2*c**2)))
 	
-	return(freq_gauss,int_gauss)
+	#int_gauss_tau = (T - Tbg)*(1 - np.exp(-int_gauss))
+	
+	int_gauss_tau = int_gauss
+	
+	int_gauss_tau[int_gauss_tau > (T - Tbg)] = (T - Tbg)
+	
+	return(freq_gauss,int_gauss_tau)
 
 #write_spectrum writes out the current freq and intensity to output_file
 
@@ -1008,18 +1016,20 @@ def run_sim(freq,intensity,T,dV,C):
 	np.seterr(over='ignore')
 	
 	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file)
-
-	numerator = (C)*(8*3.14159**3)*(frequency*1E6)*(sijmu)*(1-((exp((h*frequency*1E6)/(k*T))-1)/(exp((h*frequency*1E6)/(k*Tbg))-1)))*eta
 	
-	denominator = 1.06447*dV*Q*(exp(eupper/(kcm*T)))*(3*k)*1E48
+	Nl = C * (2*qn7 + 1) * np.exp(-elower/(0.695 * T)) / Q
+	
+	tau_numerator = np.asarray((ccm/(frequency * 10**6))**2 * aij * gup * Nl * (1 - np.exp(-(h * frequency * 10**6)/(k * T))),dtype=float)
+	
+	tau_denominator = np.asarray(8 * np.pi * (dV * frequency * 10**6 / ckm) * (2*qn7 + 1),dtype=float)
 
-	int_temp = numerator/denominator
+	tau =tau_numerator/tau_denominator
+	
+	int_temp = tau
 		
 	int_temp = trim_array(int_temp,frequency,ll,ul)		
 	
 	freq_tmp = trim_array(freq,frequency,ll,ul)
-	
-	int_temp[int_temp > thermal] = thermal	
 	
 	if gauss == True:
 
@@ -1027,9 +1037,8 @@ def run_sim(freq,intensity,T,dV,C):
 		
 	else:
 	
-		#int_temp[int_temp > thermal] = thermal
 		freq_sim = freq_tmp
-		int_sim = int_temp
+		int_sim = (T - Tbg)*(1 - np.exp(-int_temp))
 		
 	return freq_sim,int_sim
 	
@@ -1457,7 +1466,7 @@ def read_obs(x):
 		
 		tmp_str = str(spec.split('.')[-1])
 	
-		obs_name = str(spec.strip(tmp_str).strip('.'))
+		obs_name = str(spec.strip(tmp_str).strip('.').split('/')[-1])
 		
 	else: 
 	
@@ -1487,7 +1496,7 @@ def store(x=None):
 	
 		x = '{}' .format(catalog_file.split('.')[0].strip('\n').split('/')[-1]) 
 	
-	sim[x] = Molecule(x,catalog_file,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim)
+	sim[x] = Molecule(x,catalog_file,tag,gup,dof,error,qn1,qn2,qn3,qn4,qn5,qn6,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim,aij,sijmu)
 	
 	if auto_update == True:
 	
@@ -1509,21 +1518,23 @@ def recall(x):
 
 	save_results('last.results')
 
-	global elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,S,dV,T,vlsr,frequency,freq_sim,intensity,int_sim,current,catalog_file,sijmu,C
-	
-# 	tmp_flag = False
-# 	
-# 	if labels_flag == True:
-# 	
-# 		tmp_flag = True
-# 		
-# 	labels_off()
+	global elower,eupper,qns,logint,qn1,qn2,qn3,qn4,qn5,qn6,qn7,qn8,qn9,qn10,qn11,qn12,S,dV,T,vlsr,frequency,freq_sim,intensity,int_sim,current,catalog_file,sijmu,C,tag,gup,error,aij
 	
 	current = sim[x].name
 	elower = sim[x].elower
 	eupper = sim[x].eupper
+	
 	qns = sim[x].qns
 	logint = sim[x].logint
+	gup = sim[x].gup
+	tag = sim[x].tag
+	error = sim[x].error
+	qn1 = sim[x].qn1
+	qn2 = sim[x].qn2
+	qn3 = sim[x].qn3
+	qn4 = sim[x].qn4
+	qn5 = sim[x].qn5
+	qn6 = sim[x].qn6
 	qn7 = sim[x].qn7
 	qn8 = sim[x].qn8
 	qn9 = sim[x].qn9
@@ -1539,7 +1550,8 @@ def recall(x):
 	intensity = sim[x].intensity
 	int_sim = sim[x].int_sim
 	catalog_file = sim[x].catalog_file
-# 	labels = sim[x].labels
+	aij = sim[x].aij
+	sijmu = sim[x].sijmu
 
 	try:
 		clear_line('current')
@@ -1551,8 +1563,6 @@ def recall(x):
 	tmp_freq += (-vlsr)*tmp_freq/ckm
 	
 	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file)
-	
-	sijmu = (exp(np.float64(-(elower/0.695)/CT)) - exp(np.float64(-(eupper/0.695)/CT)))**(-1) * ((10**logint)/frequency) * ((4.16231*10**(-5))**(-1)) * Q
 	
 	freq_sim,int_sim=run_sim(tmp_freq,intensity,T,dV,C)	
 		
@@ -1573,15 +1583,8 @@ def recall(x):
 	except:	
 		make_plot()	
 		
-# 	if tmp_flag == True:
-# 	
-# 		labels_off()
-# 		labels_on()
-
-		
 	save_results('last.results')	
 	
-
 #overplot overplots a previously-stored simulation on the current plot in a color other than red, but does not touch the simulation active in the main program. 'x' must be entered as a string with quotes.
 
 def overplot(x,cchoice=None):
@@ -1636,7 +1639,7 @@ def load_mol(x,format='spcat'):
 	loads a new molecule into the system.  Make sure to store the old molecule simulation first, if you want to get it back.  The current graph will be updated with the new molecule.  Catalog file must be given as a string.  Simulation will begin with the same T, dV, C, vlsr as previous, so change those first if you want.
 	'''
 
-	global frequency,logint,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,first_run,tbg,sijmu,gauss		
+	global frequency,logint,error,dof,gup,tag,qn1,qn2,qn3,qn4,qn5,qn6,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,first_run,tbg,sijmu,gauss,aij		
 	
 	current = x
 	
@@ -1652,7 +1655,13 @@ def load_mol(x,format='spcat'):
 	catalog = splice_array(raw_array)
 
 	frequency = np.copy(catalog[0])
+	error = np.copy(catalog[1])
 	logint = np.copy(catalog[2])
+	dof = np.copy(catalog[3])
+	elower = np.asarray(catalog[4])
+	gup = np.asarray(catalog[5])
+	tag = np.asarray(catalog[6])
+	qnformat = np.asarray(catalog[7])		
 	qn1 = np.asarray(catalog[8])
 	qn2 = np.asarray(catalog[9])
 	qn3 = np.asarray(catalog[10])
@@ -1665,8 +1674,6 @@ def load_mol(x,format='spcat'):
 	qn10 = np.asarray(catalog[17])
 	qn11 = np.asarray(catalog[18])
 	qn12 = np.asarray(catalog[19])
-	elower = np.asarray(catalog[4])
-	qnformat = np.asarray(catalog[7])
 	
 	tbg = np.copy(elower)
 	
@@ -1687,6 +1694,10 @@ def load_mol(x,format='spcat'):
 	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file)
 
 	sijmu = (exp(np.float64(-(elower/0.695)/CT)) - exp(np.float64(-(eupper/0.695)/CT)))**(-1) * ((10**logint)/frequency) * ((4.16231*10**(-5))**(-1)) * Q
+	
+	#aij formula from CDMS.  Verfied it matched spalatalogue's values
+	
+	aij = 1.16395 * 10**(-20) * frequency**3 * sijmu / gup
 	
 	freq_sim,int_sim=run_sim(tmp_freq,intensity,T,dV,C)
 	
@@ -1761,7 +1772,6 @@ def clear_line(x):
 			ax.legend()
 		fig.canvas.draw()	
 		
-
 #clear is an alias for clear_line
 
 def clear(x):
@@ -1897,46 +1907,60 @@ def sum_stored():
 		
 	for x in sim:
 	
-		tmp_freq = np.copy(sim[x].frequency)
-		
-		tmp_freq += (-sim[x].vlsr)*tmp_freq/ckm	
-		
-		tmp_freq_trimmed = trim_array(tmp_freq,tmp_freq,ll,ul)
-		
-		Q = calc_q(sim[x].qns,sim[x].elower,sim[x].qn7,sim[x].qn8,sim[x].qn9,sim[x].qn10,sim[x].qn11,sim[x].qn12,CT,sim[x].catalog_file)
-	
-		sijmu = (exp(np.float64(-(sim[x].elower/0.695)/CT)) - exp(np.float64(-(sim[x].eupper/0.695)/CT)))**(-1) * ((10**sim[x].logint)/sim[x].frequency) * ((4.16231*10**(-5))**(-1)) * Q
-		
-		tmp_int = np.copy(sim[x].intensity)
-		
 		Q = calc_q(sim[x].qns,sim[x].elower,sim[x].qn7,sim[x].qn8,sim[x].qn9,sim[x].qn10,sim[x].qn11,sim[x].qn12,sim[x].T,sim[x].catalog_file)
-		
-		numerator = (sim[x].C)*(8*3.14159**3)*(tmp_freq*1E6)*(sijmu)*(1-((exp((h*tmp_freq*1E6)/(k*sim[x].T))-1)/(exp((h*tmp_freq*1E6)/(k*Tbg))-1)))*eta
 	
-		denominator = 1.06447*sim[x].dV*Q*(exp(sim[x].eupper/(kcm*sim[x].T)))*(3*k)*1E48
+		Nl = sim[x].C * (2*sim[x].qn7 + 1) * np.exp(-sim[x].elower/(0.695 * sim[x].T)) / Q
+	
+		tau_numerator = np.asarray((ccm/(sim[x].frequency * 10**6))**2 * sim[x].aij * sim[x].gup * Nl * (1 - np.exp(-(h * sim[x].frequency * 10**6)/(k * sim[x].T))),dtype=float)
+	
+		tau_denominator = np.asarray(8 * np.pi * (sim[x].dV * sim[x].frequency * 10**6 / ckm) * (2*sim[x].qn7 + 1),dtype=float)
 
-		tmp_int = numerator/denominator
+		tau =tau_numerator/tau_denominator
 		
-		tmp_int_trimmed = trim_array(tmp_int,tmp_freq,ll,ul)
-		
-		tmp_int_trimmed[tmp_int_trimmed > thermal] = thermal
+		int_tmp = trim_array(tau,sim[x].frequency,ll,ul)		
 	
-		for y in range(len(tmp_int_trimmed)):
+		freq_tmp = trim_array(sim[x].frequency,sim[x].frequency,ll,ul)
 		
-			if abs(tmp_int_trimmed[y]) < 0.001:
-			
-				continue
+		freq_tmp += (-sim[x].vlsr)*freq_tmp/ckm	
+	
+		#tmp_freq_trimmed,tmp_int_trimmed = sim_gaussian(int_tmp,freq_tmp,sim[x].dV)
+	
+		for y in range(len(int_tmp)):
 		
-			l_f = sim[x].dV*tmp_freq_trimmed[y]/ckm #get the FWHM in MHz
+			l_f = sim[x].dV*freq_tmp[y]/ckm #get the FWHM in MHz
 			
 			c = l_f/2.35482
-
-			int_gauss += tmp_int_trimmed[y]*exp(-((freq_gauss - tmp_freq_trimmed[y])**2/(2*c**2)))
 			
-	int_gauss[int_gauss > thermal] = thermal
+			int_tmp_tau = (sim[x].T - Tbg)*(1 - np.exp(-int_tmp[y]))
+			
+			int_gauss += int_tmp_tau*exp(-((freq_gauss - freq_tmp[y])**2/(2*c**2)))
+		
+		#for y in range(len(tmp_int_trimmed)):
+		
+		#	if abs(tmp_int_trimmed[y]) < 0.001:
+			
+		#		continue
+		
+		#	l_f = sim[x].dV*tmp_freq_trimmed[y]/ckm #get the FWHM in MHz
+			
+		#	c = l_f/2.35482
+			
+		#	int_tmp_tau = (sim[x].T - Tbg)*(1 - np.exp(-tmp_int_trimmed[y]))
+
+		#	int_gauss += int_tmp_tau*exp(-((freq_gauss - tmp_freq_trimmed[y])**2/(2*c**2)))
+
+			#int_gauss += tmp_int_trimmed[y]*exp(-((freq_gauss - tmp_freq_trimmed[y])**2/(2*c**2)))
+			
+	#int_gauss_tau = (T - Tbg)*(1 - np.exp(-int_gauss))
+	
+	int_gauss_tau = int_gauss
+	
+	int_gauss[int_gauss > (sim[x].T - Tbg)] = (sim[x].T - Tbg)
 	
 	freq_sum = freq_gauss
-	int_sum = int_gauss		
+	int_sum = int_gauss_tau		
+	
+	overplot_sum()
 
 #overplot_sum overplots the summed spectrum of all stored molecules as created by sum_stored() on the current plot, in green.
 
@@ -1951,7 +1975,7 @@ def overplot_sum():
 	if any(line for line in ax.lines if line.get_label()=='sum'):
 		clear_line('sum')
 	
-	lines['sum'] = ax.plot(freq_sum,int_sum,color = line_color, label = 'sum', gid='sum', linestyle = '-',zorder=25)
+	lines['sum'] = ax.plot(freq_sum,int_sum,color = line_color, label = 'sum', gid='sum', linestyle = '-',drawstyle=draw_style,zorder=25)
 	
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
@@ -2213,122 +2237,6 @@ def use_GHz():
 	
 	GHz = True
 
-#calc_beam returns an array of beam sizes for a telescope at each point.  This is a constant value if mode = 'A' for the synthesized beam.
-
-#def calc_beam(frequency):
-#
-#	'''
-#	returns an array of beam sizes for a telescope at each point.  This is a constant value if mode = 'A' for the synthesized beam.
-#	'''
-#	
-#	beam_size = np.copy(frequency)
-#	
-#	if mode == 'A':
-#	
-#		beam_size.fill(synth_beam)
-#		
-#	else:
-#	
-#		beam_size = (1.22*(3*10**8/(frequency*10**6))/dish_size) * 206265
-#
-#	return beam_size
-	
-#calc_bcorr calculates and returns the beam dilution correction factor at each frequency, given the source size and the beam size
-
-#def calc_bcorr(frequency,beam_size):
-#
-#	'''
-#	calculates and returns the beam dilution correction factor at each frequency, given the source size and the beam size
-#	'''
-#	
-#	bcorr = np.copy(frequency)
-#	
-#	bcorr = (source_size**2 + beam_size**2)/source_size**2
-#	
-#	return bcorr
-#	
-##apply_telescope takes a simulation and applies a correction factor to the intensity based on a provided telescope configuration, column density, and source structure
-#
-#def apply_telescope(eupper,T,freq,dV,eta,NT,tbg):
-#
-#	'''
-#	takes a simulation and applies a correction factor to the intensity based on a provided telescope configuration, column density, and source structure
-#	'''
-#	
-#	Q_300 = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,300,catalog_file)
-#	
-#	sij = (exp(np.float64(-(elower/0.695)/300)) - exp(np.float64(-(eupper/0.695)/300)))**(-1) * ((10**logint)/frequency) * ((4.16231*10**(-5))**(-1)) * Q_300
-#	
-#	Q_T = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file)
-#
-#	A = 3*k/(8*(np.pi**3))
-#	
-#	B = Q_T*np.exp(np.float64(eupper/T))/(freq*(1*10**6)*sij*(1*10**(-43)))
-#	
-#	C = 0.5*(np.pi/(np.log(2)))**0.5
-#	
-#	D1 = dV*(1*10**5)/eta
-#
-#	D2 = (np.exp(h*freq*(1*10**6)/(k*T)) -1)
-#	
-#	D3 = (np.exp(h*freq*(1*10**6)/(k*tbg)) -1)
-#	
-#	D = D1/(1-(D2/D3))
-#	
-#	TA = NT/(A*B*C*D)	
-#	
-#	beam_size = calc_beam(frequency)
-#	
-#	bcorr = calc_bcorr(frequency,beam_size)
-#	
-#	TA /= bcorr
-#
-#	return TA
-#
-##init_source initializes a pre-loaded set of conditions for specific sources
-#
-#def init_source(source,size=0.0):
-#
-#	'''
-#	Initalizes a pre-loaded set of conditions for specific sources.  Options are:
-#	SGRB2N: Requires the desired source size to be set with the size command.  Sets tbg according to Hollis et al. 2007 ApJ 660, L125 (probably not valid below 10 GHz) or other measurements at higher frequencies (XXX, YYY, ZZZ)
-#	'''
-#	global source_size,tbg,dish_size
-#	
-#	if source == 'SGRB2N':
-#	
-#		dish_size = 100.0
-#	
-#		source_size = 20.0  #The emitting region for the background continuum in SgrB2 is always 20"
-#		
-#		beam_size = calc_beam(frequency)
-#		
-#		bcorr_tbg = calc_bcorr(source_size,beam_size) #calculate the correction factor for the continuum
-#		
-#		tbg = (10**(-1.06*np.log10(frequency/1000) + 2.3))*bcorr_tbg
-#		
-#		for x in range(tbg.shape[0]):
-#	
-#			if frequency[x] > 60000:
-#		
-#				tbg[x] = 5.2
-#			
-#			if frequency[x] > 130000:
-#		
-#				tbg[x] = 6.5
-#			
-#			if frequency[x] > 230000:
-#		
-#				tbg[x] = 10.0
-#			
-#			if frequency[x] > 1000000:
-#		
-#				tbg[x] = 13.7		
-#		
-#		source_size = size
-#
-#	return
-
 #quiet suppresses warnings about computational time.  Can be used iteratively to turn it on and off.
 
 def quiet():
@@ -2362,45 +2270,6 @@ def autoset_limits():
 	
 		ll = freq_obs[-1] - 25.0
 		ul = freq_obs[0] + 25.0		
-	
-#labels_on() will turn on and add to the plot labels of Eupper and the quantum numbers for the active molecule *only*
-
-# def labels_on():
-# 
-# 	labels_off()
-# 
-# 	global labels_flag
-# 
-# 	for x in labels:
-# 	
-# 		ax.add_artist(x)
-# 	
-# 	fig.canvas.draw()
-# 	
-# 	labels_flag = True
-# 	
-# #labels_off() will turn off labels.
-# 
-# def labels_off():
-# 
-# 	global labels_flag,labels
-# 
-# 	try:
-# 	
-# 		for x in labels:
-# 	
-# 			x.remove()
-# 				
-# 	except ValueError:
-# 	
-# 		pass			
-# 
-# 	try:
-# 		fig.canvas.draw()
-# 	except NameError:
-# 		pass
-# 	
-# 	labels_flag = False
 
 #plot_residuals will make a new plot and show the residual spectrum after the total simulation is subtracted from the observations
 
@@ -2768,7 +2637,6 @@ def gauss_fit(p,plot=True,dT_bound=np.inf,v_bound=5.0,dV_bound=0.2):
 		
 		print('{:<.4f}({:<.4f}) \t {:^.3f}({:^.3f}) \t {:^.3f}({:^.3f})' .format(v_temp,v_err,dT_temp,dT_err,dV_temp,dV_err))
 		
-
 #make_gauss_params generates a parameters list for gaussian fitting.  Takes an input txt file which is first column frequencies and second column intensities.  
 
 def make_gauss_params(file,vlsr,dV):
@@ -2973,10 +2841,20 @@ def baseline(constants):
 
 class Molecule(object):
 
-	def __init__(self,name,catalog_file,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim):
+	def __init__(self,name,catalog_file,tag,gup,dof,error,qn1,qn2,qn3,qn4,qn5,qn6,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim,aij,sijmu):
 	
 		self.name = name
 		self.catalog_file = catalog_file
+		self.tag = tag
+		self.gup = gup
+		self.dof = dof
+		self.error = error
+		self.qn1 = qn1
+		self.qn2 = qn2
+		self.qn3 = qn3
+		self.qn4 = qn4
+		self.qn5 = qn5
+		self.qn6 = qn6
 		self.elower = elower
 		self.eupper = eupper
 		self.qns = qns
@@ -2996,14 +2874,10 @@ class Molecule(object):
 		self.freq_sim = freq_sim
 		self.intensity = intensity
 		self.int_sim = int_sim
+		self.aij = aij
+		self.sijmu = sijmu
 
 	
 #############################################################
 #							Run Program						#
 #############################################################
-
-
-
-make_plot()
-
-close()
