@@ -27,6 +27,7 @@
 # 3.9 - adds ability to plot manual catalogs with a velocity offset
 # 3.91 - minor change to how plots are titled
 # 4.0 - changes the simulation to perform a proper 'radiative transfer' which first calculates an opacity, and then applies the appropriate optical depth correction
+# 4.1 - added a K to Jy/beam converter that wasn't there before...
 
 #############################################################
 #							Preamble						#
@@ -53,7 +54,7 @@ from datetime import datetime
 from scipy.optimize import curve_fit
 #warnings.filterwarnings('error')
 
-version = 4.0
+version = 4.1
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -2685,6 +2686,49 @@ def jy_to_k(bmaj,bmin,freq):
 		warnings.simplefilter('ignore')
 		ax.legend()
 	fig.canvas.draw()
+	
+#k_to_jy converts the current observations from K to Jy/beam, given a beam size bmaj and bmin in arcseconds, and a center frequency in GHz.  This assumes the beam size is constant over the entire range; so if you've loaded in observations from multiple cubes that have different sizes, it's not going to be completely accurate.  It would be better to load in one cube at a time, covert it, and write it back out. 
+
+def k_to_jy(bmaj,bmin,freq,sim=False):
+
+	'''
+	#jy_to_k converts the current observations from Jy/beam to K, given a beam size bmaj and bmin in arcseconds, and a center frequency in GHz.  This assumes the beam size is constant over the entire range; so if you've loaded in observations from multiple cubes that have different sizes, it's not going to be completely accurate.  It would be better to load in one cube at a time, covert it, and write it back out
+	'''
+	
+	if sim == False:
+
+		global freq_obs,int_obs
+	
+		for x in range(len(int_obs)):
+
+			int_obs[x] = int_obs[x] * (freq**2 * bmaj * bmin) / (1.224*10**6)	
+		
+		clear_line('obs')
+		
+		try:		
+			lines['obs'] = 	ax.plot(freq_obs,int_obs,color = 'black',label='obs',zorder=0)
+		except:
+			return
+			
+	else:
+	
+		global freq_sim,int_sim
+	
+		for x in range(len(int_sim)):
+
+			int_sim[x] = int_sim[x] * (freq**2 * bmaj * bmin) / (1.224*10**6)	
+		
+		clear_line('current')
+		
+		try:		
+			lines['current'] = 	ax.plot(freq_sim,int_sim,color = 'black',label='obs',zorder=0)
+		except:
+			return		
+		
+	with warnings.catch_warnings():
+		warnings.simplefilter('ignore')
+		ax.legend()
+	fig.canvas.draw()	
 
 #load_freqs will plot lines that are provided not from a standard spcat catalog, but rather just a set of frequencies.  The user can specify either a manual array OR a catalog file containing a single column of frequencies (not both), as well as an optional intensity for the lines.
 
