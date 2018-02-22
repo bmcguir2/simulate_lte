@@ -28,6 +28,7 @@
 # 3.91 - minor change to how plots are titled
 # 4.0 - changes the simulation to perform a proper 'radiative transfer' which first calculates an opacity, and then applies the appropriate optical depth correction
 # 4.1 - added a K to Jy/beam converter that wasn't there before...
+# 4.2 - adds Aij to print_lines() readout
 
 #############################################################
 #							Preamble						#
@@ -54,7 +55,7 @@ from datetime import datetime
 from scipy.optimize import curve_fit
 #warnings.filterwarnings('error')
 
-version = 4.1
+version = 4.2
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -2391,7 +2392,7 @@ def print_lines(mol='current',thresh=0.001,rest=True):
 	
 		print_array.append('Molecule: {}' .format(name))
 		print_array.append('Column Density: {:.2e} cm-2 \t Temperature: {} K \t Linewidth: {} km/s \t vlsr: {} km/s' .format(C,T,dV,vlsr))
-		print_array.append('Frequency \t Intensity (K) \t {{:<{}}} \t Eu (K) \t gJ' .format(qn_length).format('Quantum Numbers'))
+		print_array.append('Frequency \t Intensity (K) \t {{:<{}}} \t Eu (K) \t gJ \t log(Aij)' .format(qn_length).format('Quantum Numbers'))
 	
 		#gotta re-read-in the molecule to get back the quantum numbers
 		
@@ -2425,27 +2426,27 @@ def print_lines(mol='current',thresh=0.001,rest=True):
 				qn_string = ''
 		
 				if qns == 1:
-			
+	   
 					qn_string = '{:>2} -> {:>2}' .format(qn1[y][0],qn7[y][0])
-				
+		   
 				if qns == 2:
-			
+	   
 					qn_string = '{:>2} {: >3} -> {:>2} {: >3}' .format(qn1[y][0],qn2[y][0],qn7[y][0],qn8[y][0])		
-				
+		   
 				if qns == 3:
-			
+	   
 					qn_string = '{:>2} {: >3} {: >3} -> {:>2} {: >3} {: >3}' .format(qn1[y][0],qn2[y][0],qn3[y][0],qn7[y][0],qn8[y][0],qn9[y][0])							
 
 				if qns == 4:
-			
+	   
 					qn_string = '{:>2} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3}' .format(qn1[y][0],qn2[y][0],qn3[y][0],qn4[y][0],qn7[y][0],qn8[y][0],qn9[y][0],qn10[y][0])	
-				
+		   
 				if qns == 5:
-			
+	   
 					qn_string = '{:>2} {: >3} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3} {: >3}' .format(qn1[y][0],qn2[y][0],qn3[y][0],qn4[y][0],qn5[y][0],qn7[y][0],qn8[y][0],qn9[y][0],qn10[y][0],qn11[y][0])			
-				
+		   
 				if qns == 6:
-			
+	   
 					qn_string = '{:>2} {: >3} {: >3} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3} {: >3} {: >3}' .format(qn1[y][0],qn2[y][0],qn3[y][0],qn4[y][0],qn5[y][0],qn6[y][0],qn7[y][0],qn8[y][0],qn9[y][0],qn10[y][0],qn11[y][0],qn12[y][0])							
 		
 				gJ = 2*qn1[y][0] + 1
@@ -2454,11 +2455,11 @@ def print_lines(mol='current',thresh=0.001,rest=True):
 				
 					frequency_tmp_shift = frequency[y][0] - vlsr*frequency[y][0]/3E5				
 		
-					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper[y][0]/0.695,gJ))
+					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper[y][0]/0.695,gJ,np.log10(aij[y][0])))
 					
 				else:
 				
-					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {}' .format(frequency[y][0],int_tmp[x],qn_string,eupper[y][0]/0.695,gJ))
+					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency[y][0],int_tmp[x],qn_string,eupper[y][0]/0.695,gJ,np.log10(aij[y][0])))
 		
 	else:
 	
@@ -2474,6 +2475,7 @@ def print_lines(mol='current',thresh=0.001,rest=True):
 		frequency_tmp = sim[mol].frequency
 		intensity_tmp = sim[mol].intensity
 		eupper_tmp = sim[mol].eupper
+		aij_tmp = sim[mol].aij
 		
 		qns_tmp = sim[mol].qns
 		
@@ -2549,12 +2551,12 @@ def print_lines(mol='current',thresh=0.001,rest=True):
 				
 					frequency_tmp_shift = frequency_tmp[y][0] - vlsr_tmp*frequency_tmp[y][0]/3E5
 			
-					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper_tmp[y][0]/0.695,gJ))
+					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper_tmp[y][0]/0.695,gJ,np.log10(aij_tmp[y][0])))
 				
 				else:
 				
-					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {}' .format(frequency_tmp[y][0],int_tmp[x],qn_string,eupper_tmp[y][0]/0.695,gJ))
-				
+					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency_tmp[y][0],int_tmp[x],qn_string,eupper_tmp[y][0]/0.695,gJ,np.log10(aij_tmp[y][0])))
+			
 	for x in range(len(print_array)):
 	
 		print('{}' .format(print_array[x]))		
