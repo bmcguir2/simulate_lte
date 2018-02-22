@@ -29,6 +29,7 @@
 # 4.0 - changes the simulation to perform a proper 'radiative transfer' which first calculates an opacity, and then applies the appropriate optical depth correction
 # 4.1 - added a K to Jy/beam converter that wasn't there before...
 # 4.2 - adds Aij to print_lines() readout
+# 4.3 - fixes edge case where two lines have same frequency in catalog for print_lines()
 
 #############################################################
 #							Preamble						#
@@ -55,7 +56,7 @@ from datetime import datetime
 from scipy.optimize import curve_fit
 #warnings.filterwarnings('error')
 
-version = 4.2
+version = 4.3
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -2362,7 +2363,7 @@ def plot_residuals():
 
 #print_lines will print out the catalog info on lines that are above a certain threshold for a molecule.  The default just prints out the current lines above a standard 1 mK threshold.		
 
-def print_lines(mol='current',thresh=0.001,rest=True):
+def print_lines(mol='current',thresh=0.0001,rest=True):
 
 	global gauss
 	
@@ -2417,50 +2418,64 @@ def print_lines(mol='current',thresh=0.001,rest=True):
 	
 		freq_tmp,int_tmp = run_sim(frequency,intensity,T,dV,C)
 		
+		old_f = np.nan
+
 		for x in range(len(freq_tmp)):
 		
 			if int_tmp[x] > thresh:
 		
-				y = np.where(frequency == freq_tmp[x])
+				y = np.where(frequency == freq_tmp[x])[0]
 		
 				qn_string = ''
 		
-				if qns == 1:
-	   
-					qn_string = '{:>2} -> {:>2}' .format(qn1[y][0],qn7[y][0])
-		   
-				if qns == 2:
-	   
-					qn_string = '{:>2} {: >3} -> {:>2} {: >3}' .format(qn1[y][0],qn2[y][0],qn7[y][0],qn8[y][0])		
-		   
-				if qns == 3:
-	   
-					qn_string = '{:>2} {: >3} {: >3} -> {:>2} {: >3} {: >3}' .format(qn1[y][0],qn2[y][0],qn3[y][0],qn7[y][0],qn8[y][0],qn9[y][0])							
-
-				if qns == 4:
-	   
-					qn_string = '{:>2} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3}' .format(qn1[y][0],qn2[y][0],qn3[y][0],qn4[y][0],qn7[y][0],qn8[y][0],qn9[y][0],qn10[y][0])	
-		   
-				if qns == 5:
-	   
-					qn_string = '{:>2} {: >3} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3} {: >3}' .format(qn1[y][0],qn2[y][0],qn3[y][0],qn4[y][0],qn5[y][0],qn7[y][0],qn8[y][0],qn9[y][0],qn10[y][0],qn11[y][0])			
-		   
-				if qns == 6:
-	   
-					qn_string = '{:>2} {: >3} {: >3} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3} {: >3} {: >3}' .format(qn1[y][0],qn2[y][0],qn3[y][0],qn4[y][0],qn5[y][0],qn6[y][0],qn7[y][0],qn8[y][0],qn9[y][0],qn10[y][0],qn11[y][0],qn12[y][0])							
-		
-				gJ = 2*qn1[y][0] + 1
+				#deal with the case where multiple transitions have the same frequency		
 				
-				if rest==False:
+				if freq_tmp[x] == old_f:
 				
-					frequency_tmp_shift = frequency[y][0] - vlsr*frequency[y][0]/3E5				
-		
-					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper[y][0]/0.695,gJ,np.log10(aij[y][0])))
+					i += 1
 					
 				else:
 				
-					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency[y][0],int_tmp[x],qn_string,eupper[y][0]/0.695,gJ,np.log10(aij[y][0])))
-		
+					i = 0 
+
+				if qns == 1:
+   
+					qn_string = '{:>2} -> {:>2}' .format(qn1[y][i],qn7[y][i])
+	   
+				if qns == 2:
+   
+					qn_string = '{:>2} {: >3} -> {:>2} {: >3}' .format(qn1[y][i],qn2[y][i],qn7[y][i],qn8[y][i])		
+	   
+				if qns == 3:
+   
+					qn_string = '{:>2} {: >3} {: >3} -> {:>2} {: >3} {: >3}' .format(qn1[y][i],qn2[y][i],qn3[y][i],qn7[y][i],qn8[y][i],qn9[y][i])							
+
+				if qns == 4:
+   
+					qn_string = '{:>2} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3}' .format(qn1[y][i],qn2[y][i],qn3[y][i],qn4[y][i],qn7[y][i],qn8[y][i],qn9[y][i],qn10[y][i])	
+	   
+				if qns == 5:
+   
+					qn_string = '{:>2} {: >3} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3} {: >3}' .format(qn1[y][i],qn2[y][i],qn3[y][i],qn4[y][i],qn5[y][i],qn7[y][i],qn8[y][i],qn9[y][i],qn10[y][i],qn11[y][i])			
+	   
+				if qns == 6:
+   
+					qn_string = '{:>2} {: >3} {: >3} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3} {: >3} {: >3}' .format(qn1[y][i],qn2[y][i],qn3[y][i],qn4[y][i],qn5[y][i],qn6[y][i],qn7[y][i],qn8[y][i],qn9[y][i],qn10[y][i],qn11[y][i],qn12[y][i])							
+	
+				gJ = 2*qn1[y][i] + 1
+			
+				if rest==False:
+			
+					frequency_tmp_shift = frequency[y][i] - vlsr*frequency[y][i]/3E5				
+	
+					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper[y][i]/0.695,gJ,np.log10(aij[y][i])))
+				
+				else:
+			
+					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency[y][i],int_tmp[x],qn_string,eupper[y][i]/0.695,gJ,np.log10(aij[y][i])))
+					
+				old_f = freq_tmp[x]	
+						
 	else:
 	
 		try:
@@ -2513,6 +2528,8 @@ def print_lines(mol='current',thresh=0.001,rest=True):
 	
 		freq_tmp,int_tmp = run_sim(frequency_tmp,intensity_tmp,T_tmp,dV_tmp,C_tmp)
 		
+		old_f = np.nan
+		
 		for x in range(len(freq_tmp)):
 		
 			if int_tmp[x] > thresh:
@@ -2520,42 +2537,54 @@ def print_lines(mol='current',thresh=0.001,rest=True):
 				y = np.where(frequency_tmp == freq_tmp[x])
 			
 				qn_string = ''
+				
+				#deal with the case where multiple transitions have the same frequency		
+				
+				if freq_tmp[x] == old_f:
+				
+					i += 1
+					
+				else:
+				
+					i = 0 				
 			
 				if qns_tmp == 1:
 			
-					qn_string = '{:>2} -> {:>2}' .format(qn1[y][0],qn7[y][0])
+					qn_string = '{:>2} -> {:>2}' .format(qn1[y][i],qn7[y][i])
 				
 				if qns_tmp == 2:
 			
-					qn_string = '{:>2} {: >3} -> {:>2} {: >3}' .format(qn1[y][0],qn2[y][0],qn7[y][0],qn8[y][0])		
+					qn_string = '{:>2} {: >3} -> {:>2} {: >3}' .format(qn1[y][i],qn2[y][i],qn7[y][i],qn8[y][i])		
 				
 				if qns_tmp == 3:
 			
-					qn_string = '{:>2} {: >3} {: >3} -> {:>2} {: >3} {: >3}' .format(qn1[y][0],qn2[y][0],qn3[y][0],qn7[y][0],qn8[y][0],qn9[y][0])							
+					qn_string = '{:>2} {: >3} {: >3} -> {:>2} {: >3} {: >3}' .format(qn1[y][i],qn2[y][i],qn3[y][i],qn7[y][i],qn8[y][i],qn9[y][i])							
 
 				if qns_tmp == 4:
 			
-					qn_string = '{:>2} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3}' .format(qn1[y][0],qn2[y][0],qn3[y][0],qn4[y][0],qn7[y][0],qn8[y][0],qn9[y][0],qn10[y][0])	
+					qn_string = '{:>2} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3}' .format(qn1[y][i],qn2[y][i],qn3[y][i],qn4[y][i],qn7[y][i],qn8[y][i],qn9[y][i],qn10[y][i])	
 				
 				if qns_tmp == 5:
 			
-					qn_string = '{:>2} {: >3} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3} {: >3}' .format(qn1[y][0],qn2[y][0],qn3[y][0],qn4[y][0],qn5[y][0],qn7[y][0],qn8[y][0],qn9[y][0],qn10[y][0],qn11[y][0])			
+					qn_string = '{:>2} {: >3} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3} {: >3}' .format(qn1[y][i],qn2[y][i],qn3[y][i],qn4[y][i],qn5[y][i],qn7[y][i],qn8[y][i],qn9[y][i],qn10[y][i],qn11[y][i])			
 				
 				if qns_tmp == 6:
 			
-					qn_string = '{:>2} {: >3} {: >3} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3} {: >3} {: >3}' .format(qn1[y][0],qn2[y][0],qn3[y][0],qn4[y][0],qn5[y][0],qn6[y][0],qn7[y][0],qn8[y][0],qn9[y][0],qn10[y][0],qn11[y][0],qn12[y][0])							
+					qn_string = '{:>2} {: >3} {: >3} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3} {: >3} {: >3}' .format(qn1[y][i],qn2[y][i],qn3[y][i],qn4[y][i],qn5[y][i],qn6[y][i],qn7[y][i],qn8[y][i],qn9[y][i],qn10[y][i],qn11[y][i],qn12[y][i])							
 		
-				gJ = 2*qn1[y][0] + 1
+				gJ = 2*qn1[y][i] + 1
 				
 				if rest==False:
 				
-					frequency_tmp_shift = frequency_tmp[y][0] - vlsr_tmp*frequency_tmp[y][0]/3E5
+					frequency_tmp_shift = frequency_tmp[y][i] - vlsr_tmp*frequency_tmp[y][i]/3E5
 			
-					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper_tmp[y][0]/0.695,gJ,np.log10(aij_tmp[y][0])))
+					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper_tmp[y][i]/0.695,gJ,np.log10(aij_tmp[y][i])))
 				
 				else:
 				
-					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency_tmp[y][0],int_tmp[x],qn_string,eupper_tmp[y][0]/0.695,gJ,np.log10(aij_tmp[y][0])))
+					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency_tmp[y][i],int_tmp[x],qn_string,eupper_tmp[y][i]/0.695,gJ,np.log10(aij_tmp[y][i])))
+					
+				old_f = freq_tmp[x]		
 			
 	for x in range(len(print_array)):
 	
