@@ -30,6 +30,7 @@
 # 4.1 - added a K to Jy/beam converter that wasn't there before...
 # 4.2 - adds Aij to print_lines() readout
 # 4.3 - fixes edge case where two lines have same frequency in catalog for print_lines()
+# 4.4 - minor warning fix
 
 #############################################################
 #							Preamble						#
@@ -56,7 +57,7 @@ from datetime import datetime
 from scipy.optimize import curve_fit
 #warnings.filterwarnings('error')
 
-version = 4.3
+version = 4.4
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -2419,6 +2420,8 @@ def print_lines(mol='current',thresh=0.0001,rest=True):
 		freq_tmp,int_tmp = run_sim(frequency,intensity,T,dV,C)
 		
 		old_f = np.nan
+		
+		i = 0
 
 		for x in range(len(freq_tmp)):
 		
@@ -2529,6 +2532,8 @@ def print_lines(mol='current',thresh=0.0001,rest=True):
 		freq_tmp,int_tmp = run_sim(frequency_tmp,intensity_tmp,T_tmp,dV_tmp,C_tmp)
 		
 		old_f = np.nan
+		
+		i = 0
 		
 		for x in range(len(freq_tmp)):
 		
