@@ -31,6 +31,7 @@
 # 4.2 - adds Aij to print_lines() readout
 # 4.3 - fixes edge case where two lines have same frequency in catalog for print_lines()
 # 4.4 - minor warning fix
+# 5.0 - adds ability to do velocity stacking
 
 #############################################################
 #							Preamble						#
@@ -55,9 +56,11 @@ import matplotlib.pyplot as plt
 import itertools
 from datetime import datetime
 from scipy.optimize import curve_fit
+import peakutils
+import math
 #warnings.filterwarnings('error')
 
-version = 4.4
+version = 5.0
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -2913,7 +2916,341 @@ def baseline(constants):
 		ax.legend()
 	fig.canvas.draw()				
 	
+# find peaks in the intensity array more than 3 sigma (optionally adjustable) and return the indices of those peaks as well as the measured RMS	
+	
+def find_peaks(frequency,intensity,fwhm,sigma=3,width_tweak=1.0):
 		
+		'''
+		find peaks in the intensity array more than 3 sigma (optionally adjustable) and return the indices of those peaks and the rms
+		'''
+		
+		#figure out how many channels a typical line will span
+		
+		#calculate fwhm in MHz
+		
+		fwhm_MHz = fwhm*np.median(frequency)/ckm
+		
+		#calculate channel spacing in MHz
+		
+		dMHz_chan = abs(frequency[3] - frequency[2])
+		
+		if dMHz_chan < 0.000000000001:
+		
+			dMHz_chan = abs(frequency[9] - frequency[8])
+			
+		if dMHz_chan < 0.000000000001:
+		
+			print('The program determined the channel spacing was {} MHz.  Oops.  Please take a look and make sure your frequency input is correct.' .format(dMHz_chan))
+			
+		#calculate the number of channels per FHWM
+		
+		fwhm_chan = fwhm_MHz/dMHz_chan	
+		
+		#define the number of channels per line, modified by width_tweak:
+		
+		line_chan = int(fwhm_chan * 5 * width_tweak)
+				
+		#So this is going to be a multistep iterative process to find peaks, remove them temporarily, and then find the RMS, and repeat until the RMS isn't changing.  Then we find all the peaks above the threshold sigma level.
+		
+		intensity_tmp = np.asarray(intensity)
+		intensity_mask = np.asarray(intensity)
+		frequency_mask = np.asarray(frequency)
+		
+		converged = False
+		
+		rms = np.inf
+		
+		while converged == False:
+					
+			peak_indices_tmp = peakutils.indexes(intensity_tmp,thres=0.99)
+			
+			#now we remove the channels that have those lines in them
+			
+			#first, figure out the channels to drop
+			
+			drops = []
+			
+			for x in range(len(peak_indices_tmp)):
+			
+					for z in range((peak_indices_tmp[x]-line_chan),(peak_indices_tmp[x]+line_chan+1)):
+					
+						drops.append(z)
+						
+			#use those to make a mask			
+			
+			mask = np.ones(len(intensity_tmp), dtype=bool)
+			
+			mask[drops] = False			
+			
+			#mask out those peaks
+			
+			intensity_tmp = intensity_tmp[mask]
+			
+			intensity_mask = intensity_mask[mask]
+			
+			frequency_mask = frequency_mask[mask]
+			
+			new_rms = np.sqrt(np.nanmean(intensity_tmp**2))
+			
+			#if it is the first run, set the rms to the new rms and continue
+						
+			if rms == np.inf:
+			
+				rms = new_rms
+			
+			#otherwise if there are no lines left above x sigma, stop
+			
+			elif np.amax(intensity_tmp) < new_rms*sigma:
+			
+				rms = new_rms
+			
+				converged = True
+				
+			else:
+			
+				rms = new_rms
+				
+		#now that we know the actual rms, we can find all the peaks above the threshold, and we have to calculate a real threshold, as it is a normalized intensity (percentage).  
+		
+		intensity_tmp = np.asarray(intensity)
+		
+		max = np.amax(intensity_tmp)
+		min = np.amin(intensity_tmp)
+		
+		#calc the percentage threshold that the rms sits at
+		
+		rms_thres = (sigma*rms - min)/(max - min)
+
+		peak_indices = peakutils.indexes(intensity_tmp,thres=rms_thres,min_dist=int(fwhm_chan*.5))
+		
+		return peak_indices,rms,frequency_mask,intensity_mask		
+		
+# find peaks in the intensity array more than 3 sigma (optionally adjustable) and return the indices of those peaks
+	
+def find_sim_peaks(frequency,intensity,fwhm):
+		
+		'''
+		find peaks in the intensity array more than 3 sigma (optionally adjustable) and return the indices of those peaks and the rms
+		'''
+		
+		#figure out how many channels a typical line will span
+		
+		#calculate fwhm in MHz
+		
+		fwhm_MHz = fwhm*np.median(frequency)/ckm
+		
+		#calculate channel spacing in MHz
+		
+		dMHz_chan = abs(frequency[3] - frequency[2])
+		
+		if dMHz_chan < 0.000000000001:
+		
+			dMHz_chan = abs(frequency[9] - frequency[8])
+			
+		if dMHz_chan < 0.000000000001:
+		
+			print('The program determined the channel spacing was {} MHz.  Oops.  Please take a look and make sure your frequency input is correct.' .format(dMHz_chan))
+			
+		#calculate the number of channels per FHWM
+		
+		fwhm_chan = fwhm_MHz/dMHz_chan	
+		
+		#define the number of channels per line, modified by width_tweak:
+		
+		line_chan = int(fwhm_chan * 5)
+				
+		intensity_tmp = np.asarray(intensity)
+
+		peak_indices = peakutils.indexes(intensity_tmp,0,min_dist=int(fwhm_chan*.5))
+		
+		return peak_indices		
+		
+# plot_peaks will plot the peaks, as well as the determined rms level and the baseline mask, optionally
+
+def plot_peaks(frequency,intensity,peak_indices,rms,freq_mask=None,int_mask=None):
+
+	plt.ion()	
+
+	fig = plt.figure()
+	ax = fig.add_subplot(111)
+
+	minorLocator = AutoMinorLocator(5)
+	plt.xlabel('Frequency (MHz)')
+	plt.ylabel('Intensity (Probably Arbitrary)')
+
+	plt.locator_params(nbins=4) #Use only 4 actual numbers on the x-axis
+	ax.xaxis.set_minor_locator(minorLocator) #Let the program calculate some minor ticks from that
+
+	ax.get_xaxis().get_major_formatter().set_scientific(False) #Don't let the x-axis go into scientific notation
+	ax.get_xaxis().get_major_formatter().set_useOffset(False)
+	
+	ax.plot(frequency,intensity,color='black',label='obs',zorder=0)
+	
+	rms_x = np.copy(frequency)
+	rms_y = np.copy(frequency)
+	rms_y.fill(rms)
+	
+	ax.plot(rms_x,rms_y,color='red',label='rms',zorder=50)
+	
+	if freq_mask is None:
+		pass
+	else:
+		ax.plot(freq_mask,int_mask,color='green',label='baseline',zorder=15)
+	
+	freq_peaks = []
+	int_peaks = []
+	
+	for x in range(len(peak_indices)):
+	
+		freq_peaks.append(frequency[peak_indices[x]])
+		int_peaks.append(intensity[peak_indices[x]])
+	
+	ax.scatter(freq_peaks,int_peaks,color='red',marker='x',label='peaks',zorder=25)
+	
+	ax.legend()
+	fig.canvas.draw()		
+	
+#find the index of an array with a value closest to the target value	
+	
+def find_nearest(array,value):		
+
+	idx = (np.abs(array-value)).argmin()
+	
+	return idx
+	
+#velocity_stack does a velocity stacking analysis using the current ll and ul, and the current simulation, using lines that are at least 0.1 sigma or larger, with the brightest simulated line scaled to be 1 sigma.
+
+def velocity_stack(drops=[]):
+
+	#find the simulation indices where the peaks are
+
+	peak_indices = find_sim_peaks(freq_sim,int_sim,dV)
+	
+	#find the frequencies and intensities corresponding to those peaks
+	
+	peak_freqs = freq_sim[peak_indices]
+	peak_ints = int_sim[peak_indices]
+	
+	#go find all the chunks in obs and extract them
+	
+	obs_chunks = []
+	
+	for x in range(len(peak_freqs)):
+	
+		#get the peak frequency
+	
+		freq = peak_freqs[x]
+		
+		#find the index in the observation closest to that frequency
+		
+		idx = find_nearest(freq_obs,freq)
+				
+		#calculate the resolution of the data there
+		
+		chan_MHz = abs((freq_obs[idx] - freq_obs[idx+10])/10)
+		
+		#convert that to km/s
+		
+		chan_kms = chan_MHz*ckm/freq
+		
+		#calculate how many channels to go 20 FHWM away
+		
+		nchan = int(20*dV/chan_kms)
+		
+		l_idx = idx - nchan
+		u_idx = idx + nchan
+		
+		#slice chunks out of freq_obs and int_obs and place them into obs_chunks (as numpy arrays)
+		
+		obs_chunks.append([np.asarray(freq_obs[l_idx:u_idx]),np.asarray(int_obs[l_idx:u_idx])])
+	
+	#now we go measure the rms of each of the obs chunks
+	
+	rms_chunks = []
+	
+	for x in range(len(obs_chunks)):
+	
+		freq_chunk = obs_chunks[x][0]
+		int_chunk = obs_chunks[x][1]
+	
+		rms = find_peaks(freq_chunk,int_chunk,dV)[1]
+		
+		rms_chunks.append(rms)
+		
+	#ok, now drop anything that is in the drop array 
+	
+	if len(drops) != 0:
+	
+		#sort the array in descending order, so that we remove items from the correct places
+	
+		drops.sort(reverse=True)
+		
+		for x in range(len(drops)):
+		
+			del obs_chunks[drops[x]]
+			del rms_chunks[drops[x]]			
+		
+	#display the chunks
+	
+	chunks_fig, axes = plt.subplots(4,4)
+
+	#how many figures will we have?
+	
+	n_figs = math.ceil(len(obs_chunks)/16)
+	
+	n_chunks_left = len(obs_chunks)
+	
+	for x in range(n_figs):
+	
+		n_chunks_left -= x*16
+		
+		#how many rows will we need?
+
+		n_rows = math.ceil(n_chunks_left/4)
+		
+		if n_rows > 4:
+		
+			n_rows = 4
+			
+		for y in range(n_rows):
+		
+			for z in range(4):
+			
+				chunk_number = x*16 + y*4 + z
+		
+				axes[y,z].plot(obs_chunks[chunk_number][0],obs_chunks[chunk_number][1])
+				
+				axes[y,z].annotate('[{}]' .format(chunk_number), xy=(0.1,0.8), xycoords='axes fraction')
+				
+		plt.show()
+			
+	#now need to resample so everything is on the same x-axis (velocity).  So, first, make velocity arrays.
+	
+	obs_chunks_vel = []
+	
+	for x in range(len(obs_chunks)):
+	
+		vel = np.asarray(obs_chunks[x][0])
+		
+		vel = (obs_chunks[x][0] - peak_freqs[x])*ckm/peak_freqs[x]
+		
+		obs_chunks_vel.append([vel,obs_chunks[x][1]])
+		
+	#now for the hard part, resampling these to all be on the same velocity 
+	
+	#Need to now generate a weighting array
+	
+	weights = np.asarray(peak_ints)
+		
+	#scale the weights array so that the largest value is 1
+	
+	max_int = np.amax(weights)
+	
+	weights /= max_int
+	
+	
+		
+	
 
 #############################################################
 #							Classes for Storing Results		#
