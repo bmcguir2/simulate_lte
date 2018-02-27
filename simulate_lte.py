@@ -2940,6 +2940,10 @@ def find_peaks(frequency,intensity,fwhm,sigma=3,width_tweak=1.0):
 			
 		if dMHz_chan < 0.000000000001:
 		
+			dMHz_chan = abs((freq_obs[0] - freq_obs[10])/10)
+			
+		if dMHz_chan < 0.000000000001:
+		
 			print('The program determined the channel spacing was {} MHz.  Oops.  Please take a look and make sure your frequency input is correct.' .format(dMHz_chan))
 			
 		#calculate the number of channels per FHWM
@@ -2964,6 +2968,14 @@ def find_peaks(frequency,intensity,fwhm,sigma=3,width_tweak=1.0):
 					
 			peak_indices_tmp = peakutils.indexes(intensity_tmp,thres=0.99)
 			
+			if len(peak_indices_tmp) == 0:
+			
+				converged = True 
+				
+			if len(peak_indices_tmp) < 0.5*len(intensity):
+			
+				converged = True
+			
 			#now we remove the channels that have those lines in them
 			
 			#first, figure out the channels to drop
@@ -2972,7 +2984,19 @@ def find_peaks(frequency,intensity,fwhm,sigma=3,width_tweak=1.0):
 			
 			for x in range(len(peak_indices_tmp)):
 			
-					for z in range((peak_indices_tmp[x]-line_chan),(peak_indices_tmp[x]+line_chan+1)):
+					ll = peak_indices_tmp[x]-line_chan
+					
+					if ll < 0:
+					
+						ll = 0
+						
+					ul = peak_indices_tmp[x]+line_chan+1
+					
+					if ul > len(intensity_tmp):
+						
+						ul = len(intensity_tmp)
+			
+					for z in range(ll,ul):
 					
 						drops.append(z)
 						
@@ -3000,7 +3024,7 @@ def find_peaks(frequency,intensity,fwhm,sigma=3,width_tweak=1.0):
 			
 			#otherwise if there are no lines left above x sigma, stop
 			
-			elif np.amax(intensity_tmp) < new_rms*sigma:
+			elif np.amax(intensity_tmp) < new_rms*5:
 			
 				rms = new_rms
 			
@@ -3024,6 +3048,113 @@ def find_peaks(frequency,intensity,fwhm,sigma=3,width_tweak=1.0):
 		peak_indices = peakutils.indexes(intensity_tmp,thres=rms_thres,min_dist=int(fwhm_chan*.5))
 		
 		return peak_indices,rms,frequency_mask,intensity_mask		
+
+
+
+def find_vel_peaks(velocity,intensity,fwhm,sigma=3,width_tweak=1.0):
+		
+		'''
+		find peaks in the intensity array more than 3 sigma (optionally adjustable) and return the indices of those peaks and the rms
+		'''
+		
+		#figure out how many channels a typical line will span
+		
+		line_chan = int(dV * 5 * width_tweak)
+				
+		#So this is going to be a multistep iterative process to find peaks, remove them temporarily, and then find the RMS, and repeat until the RMS isn't changing.  Then we find all the peaks above the threshold sigma level.
+		
+		intensity_tmp = np.asarray(intensity)
+		intensity_mask = np.asarray(intensity)
+				
+		converged = False
+		
+		rms = np.inf
+		
+		while converged == False:
+					
+			peak_indices_tmp = peakutils.indexes(intensity_tmp,thres=0.99)
+			
+			if len(peak_indices_tmp) == 0:
+			
+				converged = True 
+				
+			if len(peak_indices_tmp) < 0.5*len(intensity):
+			
+				converged = True
+			
+			#now we remove the channels that have those lines in them
+			
+			#first, figure out the channels to drop
+			
+			drops = []
+			
+			for x in range(len(peak_indices_tmp)):
+			
+					ll = peak_indices_tmp[x]-line_chan
+					
+					if ll < 0:
+					
+						ll = 0
+						
+					ul = peak_indices_tmp[x]+line_chan+1
+					
+					if ul > len(intensity_tmp):
+						
+						ul = len(intensity_tmp)
+			
+					for z in range(ll,ul):
+					
+						drops.append(z)
+						
+			#use those to make a mask			
+			
+			mask = np.ones(len(intensity_tmp), dtype=bool)
+			
+			mask[drops] = False			
+			
+			#mask out those peaks
+			
+			intensity_tmp = intensity_tmp[mask]
+			
+			intensity_mask = intensity_mask[mask]
+			
+			new_rms = np.sqrt(np.nanmean(intensity_tmp**2))
+			
+			#if it is the first run, set the rms to the new rms and continue
+						
+			if rms == np.inf:
+			
+				rms = new_rms
+			
+			#otherwise if there are no lines left above x sigma, stop
+			
+			elif np.amax(intensity_tmp) < new_rms*5:
+			
+				rms = new_rms
+			
+				converged = True
+				
+			else:
+			
+				rms = new_rms
+				
+		#now that we know the actual rms, we can find all the peaks above the threshold, and we have to calculate a real threshold, as it is a normalized intensity (percentage).  
+		
+		intensity_tmp = np.asarray(intensity)
+		
+		max = np.amax(intensity_tmp)
+		min = np.amin(intensity_tmp)
+		
+		#calc the percentage threshold that the rms sits at
+		
+		rms_thres = (sigma*rms - min)/(max - min)
+
+		peak_indices = peakutils.indexes(intensity_tmp,thres=rms_thres,min_dist=int(fwhm*.5))
+		
+		return peak_indices,rms	
+		
+
+
 		
 # find peaks in the intensity array more than 3 sigma (optionally adjustable) and return the indices of those peaks
 	
@@ -3046,6 +3177,10 @@ def find_sim_peaks(frequency,intensity,fwhm):
 		if dMHz_chan < 0.000000000001:
 		
 			dMHz_chan = abs(frequency[9] - frequency[8])
+			
+		if dMHz_chan < 0.000000000001:
+		
+			dMHz_chan = abs((freq_obs[0] - freq_obs[10])/10)			
 			
 		if dMHz_chan < 0.000000000001:
 		
@@ -3109,9 +3244,7 @@ def plot_peaks(frequency,intensity,peak_indices,rms,freq_mask=None,int_mask=None
 	
 	ax.legend()
 	fig.canvas.draw()		
-	
-#find the index of an array with a value closest to the target value	
-	
+
 def find_nearest(array,value):		
 
 	idx = (np.abs(array-value)).argmin()
@@ -3120,7 +3253,7 @@ def find_nearest(array,value):
 	
 #velocity_stack does a velocity stacking analysis using the current ll and ul, and the current simulation, using lines that are at least 0.1 sigma or larger, with the brightest simulated line scaled to be 1 sigma.
 
-def velocity_stack(drops=[]):
+def velocity_stack(drops=[],plot_chunks=True):
 
 	#find the simulation indices where the peaks are
 
@@ -3153,9 +3286,9 @@ def velocity_stack(drops=[]):
 		
 		chan_kms = chan_MHz*ckm/freq
 		
-		#calculate how many channels to go 20 FHWM away
+		#calculate how many channels to go 40 FHWM away
 		
-		nchan = int(20*dV/chan_kms)
+		nchan = int(40*dV/chan_kms)
 		
 		l_idx = idx - nchan
 		u_idx = idx + nchan
@@ -3163,7 +3296,37 @@ def velocity_stack(drops=[]):
 		#slice chunks out of freq_obs and int_obs and place them into obs_chunks (as numpy arrays)
 		
 		obs_chunks.append([np.asarray(freq_obs[l_idx:u_idx]),np.asarray(int_obs[l_idx:u_idx])])
+		
+	#remove anything where we didn't have data.  Hard coded to need to be within 3 MHz
 	
+	for x in range(len(obs_chunks)):
+	
+		mid_point = math.ceil(len(obs_chunks[x][0])/2)
+	
+		if len(obs_chunks[x][0]) == 0:
+		
+			drops.append(x)	
+			
+		elif abs(obs_chunks[x][0][mid_point] - peak_freqs[x]) >  3:
+		
+			drops.append(x)
+		
+	#ok, now drop anything that is in the drop array
+	
+	if len(drops) != 0:
+	
+		#sort the array in descending order, so that we remove items from the correct places
+	
+		drops = list(set(drops))
+	
+		drops.sort(reverse=True)
+		
+		for x in range(len(drops)):
+		
+			del obs_chunks[drops[x]]
+			peak_freqs = np.delete(peak_freqs, drops[x])
+			peak_ints = np.delete(peak_ints, drops[x])		
+
 	#now we go measure the rms of each of the obs chunks
 	
 	rms_chunks = []
@@ -3176,23 +3339,6 @@ def velocity_stack(drops=[]):
 		rms = find_peaks(freq_chunk,int_chunk,dV)[1]
 		
 		rms_chunks.append(rms)
-		
-	#ok, now drop anything that is in the drop array 
-	
-	if len(drops) != 0:
-	
-		#sort the array in descending order, so that we remove items from the correct places
-	
-		drops.sort(reverse=True)
-		
-		for x in range(len(drops)):
-		
-			del obs_chunks[drops[x]]
-			del rms_chunks[drops[x]]			
-		
-	#display the chunks
-	
-	chunks_fig, axes = plt.subplots(4,4)
 
 	#how many figures will we have?
 	
@@ -3201,6 +3347,12 @@ def velocity_stack(drops=[]):
 	n_chunks_left = len(obs_chunks)
 	
 	for x in range(n_figs):
+	
+		if plot_chunks == False:
+		
+			break
+	
+		chunks_fig, axes = plt.subplots(4,4)
 	
 		n_chunks_left -= x*16
 		
@@ -3218,7 +3370,10 @@ def velocity_stack(drops=[]):
 			
 				chunk_number = x*16 + y*4 + z
 		
-				axes[y,z].plot(obs_chunks[chunk_number][0],obs_chunks[chunk_number][1])
+				try:
+					axes[y,z].plot(obs_chunks[chunk_number][0],obs_chunks[chunk_number][1])
+				except IndexError:
+					break
 				
 				axes[y,z].annotate('[{}]' .format(chunk_number), xy=(0.1,0.8), xycoords='axes fraction')
 				
@@ -3238,7 +3393,64 @@ def velocity_stack(drops=[]):
 		
 	#now for the hard part, resampling these to all be on the same velocity 
 	
-	#Need to now generate a weighting array
+	obs_chunks_vel_samp = []
+	
+	vel_ref = np.asarray(obs_chunks_vel[-1][0])
+	
+	for x in range(len(obs_chunks_vel)):
+	
+		vel_tmp = np.asarray(obs_chunks_vel[x][0])
+		int_tmp = np.asarray(obs_chunks_vel[x][1])
+		
+		int_interp = np.interp(vel_ref,vel_tmp,int_tmp)
+		
+		obs_chunks_vel_samp.append([vel_ref,int_interp])
+		
+	#display these, for checking purposes
+
+	#how many figures will we have?
+	
+	n_figs = math.ceil(len(obs_chunks_vel_samp)/16)
+	
+	n_chunks_left = len(obs_chunks_vel_samp)
+	
+	for x in range(n_figs):
+
+		if plot_chunks == False:
+		
+			break
+	
+		chunks_fig, axes = plt.subplots(4,4)
+	
+		n_chunks_left -= x*16
+		
+		#how many rows will we need?
+
+		n_rows = math.ceil(n_chunks_left/4)
+		
+		if n_rows > 4:
+		
+			n_rows = 4
+			
+		for y in range(n_rows):
+		
+			for z in range(4):
+			
+				chunk_number = x*16 + y*4 + z
+		
+				try:
+		
+					axes[y,z].plot(obs_chunks_vel_samp[chunk_number][0],obs_chunks_vel_samp[chunk_number][1])
+					
+				except IndexError:
+				
+					break
+				
+				axes[y,z].annotate('[{}]' .format(chunk_number), xy=(0.1,0.8), xycoords='axes fraction')
+				
+		plt.show()		
+	
+	#Need to now generate a weighting array for the line heights
 	
 	weights = np.asarray(peak_ints)
 		
@@ -3248,9 +3460,42 @@ def velocity_stack(drops=[]):
 	
 	weights /= max_int
 	
+	#now we do the average
 	
+	vel_avg = vel_ref
+	
+	int_avg = np.zeros_like(vel_ref)
+	
+	rms_chunks = np.asarray(rms_chunks)
+	
+	for x in range(len(obs_chunks_vel_samp)):
+	
+		int_avg += obs_chunks_vel_samp[x][1]/rms_chunks[x]**2
 		
+	int_avg /= np.sum(rms_chunks**2)
 	
+	final_rms = find_vel_peaks(vel_avg,int_avg,dV,width_tweak = 3)[1]
+	
+	int_avg /= final_rms
+	
+	plt.ion()	
+
+	fig = plt.figure()
+	ax = fig.add_subplot(111)
+
+	minorLocator = AutoMinorLocator(5)
+	plt.xlabel('Velocity (km/s)')
+	plt.ylabel('SNR')
+
+	plt.locator_params(nbins=4) #Use only 4 actual numbers on the x-axis
+	ax.xaxis.set_minor_locator(minorLocator) #Let the program calculate some minor ticks from that
+
+	ax.get_xaxis().get_major_formatter().set_scientific(False) #Don't let the x-axis go into scientific notation
+	ax.get_xaxis().get_major_formatter().set_useOffset(False)
+	
+	ax.plot(vel_avg,int_avg,color='black',label='average',zorder=0)
+	
+	drops = []	
 
 #############################################################
 #							Classes for Storing Results		#
