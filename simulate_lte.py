@@ -32,6 +32,7 @@
 # 4.3 - fixes edge case where two lines have same frequency in catalog for print_lines()
 # 4.4 - minor warning fix
 # 5.0 - adds ability to do velocity stacking
+# 5.1 - adds ability to correct for beam dilution
 
 #############################################################
 #							Preamble						#
@@ -60,13 +61,14 @@ import peakutils
 import math
 #warnings.filterwarnings('error')
 
-version = 5.0
+version = 5.1
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
 kcm = 0.69503476 #Boltzmann's constant in cm-1/K
 ckm = 2.998*10**5 #speed of light in km/s
 ccm = 2.998*10**10 #speed of light in cm/s
+cm = 2.998*10**8 #speed of light in m/s
 
 #############################################################
 #							Warning 						#
@@ -112,19 +114,11 @@ Tbg = 2.7 #background continuum temperature (K)
 
 gauss = True #toggle for simulating Gaussians or a stick spectrum.  Default is True.
 
-#mode = 'SD' #sets the simulation either for a single dish ('SD') facility, which calculates dynamic beam sizes, or an array ('A'), which uses a fixed synthesized beam size.  Set this option manually, with configure_telescope(), or with init_telescope().
+dish_size = 100 #for use if beam corrections are desired; given in meters
 
-#dish_size = 10.0 #dish diamater of a single dish telescope in meters.  Set this option manually, with configure_telescope(), or with init_telescope().
+source_size = 1E20 #for use if beam corrections are desired; given in arcseconds
 
 eta = 1.0 #beam efficiency of the telescope.  Set this option manually, with configure_telescope(), or with init_telescope(). 
-
-#units = 'K' #either 'K' or 'Jy/beam'.  Set this option manually, with configure_telescope(), or with init_telescope().
-
-#synth_beam = 1.0 #synthesized beam size for an array in arcseconds.  Only used if mode = 'A'.  Set this option manually, with configure_telescope(), or with init_telescope().
-
-#column_sim = False #if this is false (default), then S is just a static scalar.  If this is True, S is the column density, and the telescope correction is applied.
-
-#source_size = 200.0 #source size in arcseconds.  Set this option manually or with init_source().
 
 npts_line = 15 #default is 15 points across each line
 
@@ -1011,6 +1005,42 @@ def write_spectrum(x,output_file):
 					
 				output.write('{} {}\n' .format(freq_tmp[h],int_tmp[h]))									
 
+#apply_beam applies a beam dilution correction factor
+
+def apply_beam(frequency,intensity,source_size,dish_size):
+
+	#create a wave to hold wavelengths, fill it to start w/ frequencies
+
+	wavelength = np.copy(frequency)
+	
+	#Convert those frequencies to Hz
+	
+	wavelength *= 1.0E6
+	
+	#Convert to meters
+	
+	wavelength = cm/wavelength
+	
+	#create an array to hold beam sizes
+	
+	beam_size = np.copy(wavelength)
+	
+	#fill it with beamsizes
+	
+	beam_size *= 206265 * 1.22 / dish_size
+	
+	#create an array to hold beam dilution factors
+	
+	dilution_factor = np.copy(beam_size)
+	
+	dilution_factor = source_size**2/(beam_size**2 + source_size**2)
+	
+	intensity_diluted = np.copy(intensity)
+	
+	intensity_diluted *= dilution_factor
+	
+	return intensity_diluted
+	
 #run_sim runs the simulation.  It's a meta routine, so that we can update later
 
 def run_sim(freq,intensity,T,dV,C):
@@ -1037,6 +1067,8 @@ def run_sim(freq,intensity,T,dV,C):
 	int_temp = trim_array(int_temp,frequency,ll,ul)		
 	
 	freq_tmp = trim_array(freq,frequency,ll,ul)
+	
+	int_temp = apply_beam(freq_tmp,int_temp,source_size,dish_size)
 	
 	if gauss == True:
 
@@ -3253,7 +3285,9 @@ def find_nearest(array,value):
 	
 #velocity_stack does a velocity stacking analysis using the current ll and ul, and the current simulation, using lines that are at least 0.1 sigma or larger, with the brightest simulated line scaled to be 1 sigma.
 
-def velocity_stack(drops=[],plot_chunks=True):
+def velocity_stack(man_drops=[],plot_chunks=True):
+
+	drops = []
 
 	#find the simulation indices where the peaks are
 
@@ -3280,7 +3314,11 @@ def velocity_stack(drops=[],plot_chunks=True):
 				
 		#calculate the resolution of the data there
 		
-		chan_MHz = abs((freq_obs[idx] - freq_obs[idx+10])/10)
+		try:
+			chan_MHz = abs((freq_obs[idx] - freq_obs[idx+10])/10)
+		except IndexError:
+			obs_chunks.append([[],[]])
+			continue
 		
 		#convert that to km/s
 		
@@ -3300,16 +3338,41 @@ def velocity_stack(drops=[],plot_chunks=True):
 	#remove anything where we didn't have data.  Hard coded to need to be within 3 MHz
 	
 	for x in range(len(obs_chunks)):
-	
-		mid_point = math.ceil(len(obs_chunks[x][0])/2)
-	
+		
 		if len(obs_chunks[x][0]) == 0:
 		
 			drops.append(x)	
 			
-		elif abs(obs_chunks[x][0][mid_point] - peak_freqs[x]) >  3:
+			continue
+			
+		mid_point = math.ceil(len(obs_chunks[x][0])/2)	
+			
+		if abs(obs_chunks[x][0][mid_point] - peak_freqs[x]) >  3:
 		
 			drops.append(x)
+			
+			continue
+			
+		total_span = obs_chunks[x][0][-1] - obs_chunks[x][0][0]
+		
+		freq = peak_freqs[x]
+		
+		dV_MHz = dV*freq/ckm
+		
+		expected_span = 80*dV_MHz	
+			
+		if total_span > 2*expected_span:
+		
+			drops.append(x)
+			
+			continue
+	
+	if len(man_drops) != 0:
+	
+		for x in range(len(man_drops)):
+		
+			drops.append(man_drops[x])	
+			
 		
 	#ok, now drop anything that is in the drop array
 	
@@ -3326,6 +3389,12 @@ def velocity_stack(drops=[],plot_chunks=True):
 			del obs_chunks[drops[x]]
 			peak_freqs = np.delete(peak_freqs, drops[x])
 			peak_ints = np.delete(peak_ints, drops[x])		
+			
+	if len(obs_chunks) == 0:
+	
+		print('There are no lines in the data to be averaged.  Sorry.')
+		
+		return		
 
 	#now we go measure the rms of each of the obs chunks
 	
@@ -3376,8 +3445,13 @@ def velocity_stack(drops=[],plot_chunks=True):
 					break
 				
 				axes[y,z].annotate('[{}]' .format(chunk_number), xy=(0.1,0.8), xycoords='axes fraction')
-				
-		plt.show()
+				minorLocator = AutoMinorLocator(5)
+
+				plt.locator_params(nbins=4) #Use only 4 actual numbers on the x-axis
+				axes[y,z].xaxis.set_minor_locator(minorLocator) #Let the program calculate some minor ticks from that
+
+				axes[y,z].get_xaxis().get_major_formatter().set_scientific(False) #Don't let the x-axis go into scientific notation
+				axes[y,z].get_xaxis().get_major_formatter().set_useOffset(False)
 			
 	#now need to resample so everything is on the same x-axis (velocity).  So, first, make velocity arrays.
 	
@@ -3406,50 +3480,48 @@ def velocity_stack(drops=[],plot_chunks=True):
 		
 		obs_chunks_vel_samp.append([vel_ref,int_interp])
 		
-	#display these, for checking purposes
+		#display these, for checking purposes
 
-	#how many figures will we have?
-	
-	n_figs = math.ceil(len(obs_chunks_vel_samp)/16)
-	
-	n_chunks_left = len(obs_chunks_vel_samp)
-	
-	for x in range(n_figs):
+		#how many figures will we have?
 
-		if plot_chunks == False:
-		
-			break
-	
-		chunks_fig, axes = plt.subplots(4,4)
-	
-		n_chunks_left -= x*16
-		
-		#how many rows will we need?
-
-		n_rows = math.ceil(n_chunks_left/4)
-		
-		if n_rows > 4:
-		
-			n_rows = 4
-			
-		for y in range(n_rows):
-		
-			for z in range(4):
-			
-				chunk_number = x*16 + y*4 + z
-		
-				try:
-		
-					axes[y,z].plot(obs_chunks_vel_samp[chunk_number][0],obs_chunks_vel_samp[chunk_number][1])
-					
-				except IndexError:
+# 	n_figs = math.ceil(len(obs_chunks_vel_samp)/16)
+# 
+# 	n_chunks_left = len(obs_chunks_vel_samp)
+# 
+# 	for x in range(n_figs):
+# 
+# 		if plot_chunks == False:
+#    
+# 			break
+# 
+# 		chunks_fig, axes = plt.subplots(4,4)
+# 
+# 		n_chunks_left -= x*16
+#    
+# 			#how many rows will we need?
+# 
+# 		n_rows = math.ceil(n_chunks_left/4)
+#    
+# 		if n_rows > 4:
+#    
+# 			n_rows = 4
+# 	   
+# 		for y in range(n_rows):
+#    
+# 			for z in range(4):
+# 	   
+# 				chunk_number = x*16 + y*4 + z
+#    
+# 				try:
+#    
+# 					axes[y,z].plot(obs_chunks_vel_samp[chunk_number][0],obs_chunks_vel_samp[chunk_number][1])
+# 			   
+# 				except IndexError:
+# 		   
+# 					break
+# 		   
+# 				axes[y,z].annotate('[{}]' .format(chunk_number), xy=(0.1,0.8), xycoords='axes fraction')
 				
-					break
-				
-				axes[y,z].annotate('[{}]' .format(chunk_number), xy=(0.1,0.8), xycoords='axes fraction')
-				
-		plt.show()		
-	
 	#Need to now generate a weighting array for the line heights
 	
 	weights = np.asarray(peak_ints)
@@ -3470,7 +3542,7 @@ def velocity_stack(drops=[],plot_chunks=True):
 	
 	for x in range(len(obs_chunks_vel_samp)):
 	
-		int_avg += obs_chunks_vel_samp[x][1]/rms_chunks[x]**2
+		int_avg += obs_chunks_vel_samp[x][1]*weights[x]/rms_chunks[x]**2
 		
 	int_avg /= np.sum(rms_chunks**2)
 	
@@ -3496,6 +3568,7 @@ def velocity_stack(drops=[],plot_chunks=True):
 	ax.plot(vel_avg,int_avg,color='black',label='average',zorder=0)
 	
 	drops = []	
+
 
 #############################################################
 #							Classes for Storing Results		#
