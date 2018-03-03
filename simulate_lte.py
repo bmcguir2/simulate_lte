@@ -33,6 +33,8 @@
 # 4.4 - minor warning fix
 # 5.0 - adds ability to do velocity stacking
 # 5.1 - adds ability to correct for beam dilution
+# 5.2 - adds ability to save velocity stacked spectra
+# 5.3 - bug fix for noisy data without lines in peak finding
 
 #############################################################
 #							Preamble						#
@@ -61,7 +63,7 @@ import peakutils
 import math
 #warnings.filterwarnings('error')
 
-version = 5.1
+version = 5.3
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -139,6 +141,9 @@ draw_style = 'steps' #can be toggled on and off for going between drawing steps 
 sim = {} #dictionary to hold stored simulations
 
 lines = {} #dictionary to hold matplotlib lines
+
+vel_stacked = [] #to hold velocity-stacked spectra
+int_stacked = []
 
 freq_obs = [] #to hold laboratory or observational spectra
 int_obs = []
@@ -971,6 +976,11 @@ def write_spectrum(x,output_file):
 	
 		freq_tmp = freq_obs
 		int_tmp = int_obs
+		
+	elif x == 'stacked':
+	
+		freq_tmp = vel_stacked
+		int_tmp = int_stacked
 				
 	else:
 	
@@ -2964,20 +2974,8 @@ def find_peaks(frequency,intensity,fwhm,sigma=3,width_tweak=1.0):
 		
 		#calculate channel spacing in MHz
 		
-		dMHz_chan = abs(frequency[3] - frequency[2])
-		
-		if dMHz_chan < 0.000000000001:
-		
-			dMHz_chan = abs(frequency[9] - frequency[8])
-			
-		if dMHz_chan < 0.000000000001:
-		
-			dMHz_chan = abs((freq_obs[0] - freq_obs[10])/10)
-			
-		if dMHz_chan < 0.000000000001:
-		
-			print('The program determined the channel spacing was {} MHz.  Oops.  Please take a look and make sure your frequency input is correct.' .format(dMHz_chan))
-			
+		dMHz_chan = abs(frequency[-1] - frequency[0])/len(frequency)
+		 			
 		#calculate the number of channels per FHWM
 		
 		fwhm_chan = fwhm_MHz/dMHz_chan	
@@ -2997,6 +2995,8 @@ def find_peaks(frequency,intensity,fwhm,sigma=3,width_tweak=1.0):
 		rms = np.inf
 		
 		while converged == False:
+		
+			rms = np.sqrt(np.nanmean(intensity_tmp**2))
 					
 			peak_indices_tmp = peakutils.indexes(intensity_tmp,thres=0.99)
 			
@@ -3004,9 +3004,15 @@ def find_peaks(frequency,intensity,fwhm,sigma=3,width_tweak=1.0):
 			
 				converged = True 
 				
-			if len(peak_indices_tmp) < 0.5*len(intensity):
+			if len(peak_indices_tmp) < 0.75*len(intensity):
 			
 				converged = True
+				
+			for x in range(len(peak_indices_tmp)):
+			
+				if intensity_tmp[peak_indices_tmp[x]] < 2*rms:
+				
+					converged = True
 			
 			#now we remove the channels that have those lines in them
 			
@@ -3081,7 +3087,7 @@ def find_peaks(frequency,intensity,fwhm,sigma=3,width_tweak=1.0):
 		
 		return peak_indices,rms,frequency_mask,intensity_mask		
 
-
+# find peaks in velocity space spectra
 
 def find_vel_peaks(velocity,intensity,fwhm,sigma=3,width_tweak=1.0):
 		
@@ -3184,9 +3190,6 @@ def find_vel_peaks(velocity,intensity,fwhm,sigma=3,width_tweak=1.0):
 		peak_indices = peakutils.indexes(intensity_tmp,thres=rms_thres,min_dist=int(fwhm*.5))
 		
 		return peak_indices,rms	
-		
-
-
 		
 # find peaks in the intensity array more than 3 sigma (optionally adjustable) and return the indices of those peaks
 	
@@ -3361,11 +3364,14 @@ def velocity_stack(man_drops=[],plot_chunks=True):
 		
 		expected_span = 80*dV_MHz	
 			
-		if total_span > 2*expected_span:
+		if total_span > 1.2*expected_span:
 		
 			drops.append(x)
 			
 			continue
+		
+		
+			
 	
 	if len(man_drops) != 0:
 	
@@ -3568,6 +3574,11 @@ def velocity_stack(man_drops=[],plot_chunks=True):
 	ax.plot(vel_avg,int_avg,color='black',label='average',zorder=0)
 	
 	drops = []	
+	
+	global vel_stacked,int_stacked
+	
+	vel_stacked = np.copy(vel_ref)
+	int_stacked = np.copy(int_avg)
 
 
 #############################################################
