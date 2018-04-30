@@ -35,6 +35,7 @@
 # 5.1 - adds ability to correct for beam dilution
 # 5.2 - adds ability to save velocity stacked spectra
 # 5.3 - bug fix for noisy data without lines in peak finding
+# 5.4 - minor correction to calculation of optically thick lines
 
 #############################################################
 #							Preamble						#
@@ -63,7 +64,7 @@ import peakutils
 import math
 #warnings.filterwarnings('error')
 
-version = 5.3
+version = 5.4
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -935,17 +936,15 @@ def sim_gaussian(int_sim,freq,linewidth):
 						
 		else:
 		
-			int_tmp = (T - Tbg)*(1 - np.exp(-int_sim[x]))
-		
-			int_gauss += int_tmp*exp(-((freq_gauss - freq[x])**2/(2*c**2)))
+			J_T = (h*freq_gauss*10**6/k)*(np.exp(((h*freq_gauss*10**6)/(k*T))) -1)**-1
+			J_Tbg = (h*freq_gauss*10**6/k)*(np.exp(((h*freq_gauss*10**6)/(k*Tbg))) -1)**-1
 
-			#int_gauss += int_sim[x]*exp(-((freq_gauss - freq[x])**2/(2*c**2)))
+			int_gauss += int_sim[x]*exp(-((freq_gauss - freq[x])**2/(2*c**2)))
 	
-	#int_gauss_tau = (T - Tbg)*(1 - np.exp(-int_gauss))
+	J_T = (h*freq_gauss*10**6/k)*(np.exp(((h*freq_gauss*10**6)/(k*T))) -1)**-1
+	J_Tbg = (h*freq_gauss*10**6/k)*(np.exp(((h*freq_gauss*10**6)/(k*Tbg))) -1)**-1
 	
-	int_gauss_tau = int_gauss
-	
-	int_gauss_tau[int_gauss_tau > (T - Tbg)] = (T - Tbg)
+	int_gauss_tau = (J_T - J_Tbg)*(1 - np.exp(-int_gauss))
 	
 	return(freq_gauss,int_gauss_tau)
 
@@ -1087,7 +1086,11 @@ def run_sim(freq,intensity,T,dV,C):
 	else:
 	
 		freq_sim = freq_tmp
-		int_sim = (T - Tbg)*(1 - np.exp(-int_temp))
+		
+		J_T = (h*freq_sim*10**6/k)*(np.exp(((h*freq_sim*10**6)/(k*T))) -1)**-1
+		J_Tbg = (h*freq_sim*10**6/k)*(np.exp(((h*freq_sim*10**6)/(k*Tbg))) -1)**-1
+		
+		int_sim = (J_T - J_Tbg)*(1 - np.exp(-int_temp))
 		
 	return freq_sim,int_sim
 	
