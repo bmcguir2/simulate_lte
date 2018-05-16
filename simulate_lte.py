@@ -3583,6 +3583,64 @@ def velocity_stack(man_drops=[],plot_chunks=True):
 	vel_stacked = np.copy(vel_ref)
 	int_stacked = np.copy(int_avg)
 
+def cut_spectra(write=False,outputfile='cut.txt',n_fwhm=30):
+
+	if gauss == True:
+	
+		print('cut_spectra() does not yet work with gaussian simulated spectra, only stick spectra.  Please resimulate with gauss=False and try again.')
+		
+		return
+
+	freq_cut = []
+	int_cut = []
+
+	for x in freq_sim:
+
+		i = (np.abs(freq_obs - x)).argmin()
+	
+		if abs(freq_obs[i]-x) < 1:
+	
+			#get resolution in MHz near point
+		
+			res_tmp = abs((freq_obs[i]-freq_obs[i+10])/10)
+		
+			#get resolution in km/s near point
+		
+			vel_res_tmp = abs(res_tmp*ckm/freq_obs[i])
+		
+			#calculate number of points equivalent to <<n_fwhm>> * FHWM
+		
+			pts_tmp = int(n_fwhm*dV/vel_res_tmp)
+		
+			#find the indexes at +/- 30 FWHM
+		
+			i_low = i-pts_tmp
+		
+			i_high = i+pts_tmp
+		
+			for x in range(i_low,i_high):
+			
+				freq_cut.append(freq_obs[x])
+				int_cut.append(int_obs[x])
+			
+	if len(freq_cut) == 0:
+	
+		print('Something is wrong - no cuts were made.  Either there\'s no matching data or the script is broken.')	
+			
+	if write==False:
+	
+		return freq_cut,int_cut
+		
+	if write==True:
+	
+		with open(outputfile,'w') as output:
+		
+			for x in range(len(freq_cut)):
+			
+				output.write('{} {}\n' .format(freq_cut[x],int_cut[x]))
+				
+		return
+
 
 #############################################################
 #							Classes for Storing Results		#
