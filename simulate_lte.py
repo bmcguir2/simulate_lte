@@ -36,6 +36,8 @@
 # 5.2 - adds ability to save velocity stacked spectra
 # 5.3 - bug fix for noisy data without lines in peak finding
 # 5.4 - minor correction to calculation of optically thick lines
+# 5.5 - added ability to cut out spectra around simulated stick spectra
+# 5.6 - update to autoset_limits() to not simulate where there's no data between the absolute upper and lower bounds
 
 #############################################################
 #							Preamble						#
@@ -64,7 +66,7 @@ import peakutils
 import math
 #warnings.filterwarnings('error')
 
-version = 5.4
+version = 5.6
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -2305,23 +2307,41 @@ def quiet():
 		
 #autoset_limits() automatically sets the upper and lower limits to 25 MHz above and below the lowest limits of the loaded spectra.
 
-def autoset_limits():
+def autoset_limits(spacing_tolerance=100):
 
 	global ll,ul
 	
 	if len(freq_obs) == 0:
 	
 		print('First, load a spectrum with read_obs()')
-	
-	elif freq_obs[0] < freq_obs[-1]:
-	
-		ll = freq_obs[0] - 25.0
-		ul = freq_obs[-1] + 25.0
 		
-	elif freq_obs[0] > freq_obs[-1]:
+	#run through the data and try to find gaps
+	#first, calculate the average spacing of the datapoints
 	
-		ll = freq_obs[-1] - 25.0
-		ul = freq_obs[0] + 25.0		
+	spacing = abs(freq_obs[0]-freq_obs[10])/10
+	
+	#find all values where the next point is more than spacing_tolerance * spacing away
+	
+	#initialize a list to hold these, with the first point being in there automatically
+	
+	values = [freq_obs[0]]
+	
+	for x in range(len(freq_obs)-1):
+	
+		if abs(freq_obs[x+1] - freq_obs[x]) > spacing_tolerance*spacing:
+		
+			values.append(freq_obs[x])
+			values.append(freq_obs[x+1])
+			
+	#make sure the last point gets in there too
+	
+	values.append(freq_obs[-1])
+			
+	ll = values[0::2] 
+	ul = values[1::2]
+
+	ll = [x-25 for x in ll]
+	ul = [x+25 for x in ul]
 
 #plot_residuals will make a new plot and show the residual spectrum after the total simulation is subtracted from the observations
 
