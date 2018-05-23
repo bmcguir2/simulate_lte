@@ -1441,7 +1441,7 @@ def read_obs(x):
 	reads in observations or laboratory spectra and populates freq_obs and int_obs.  will detect a standard .ispec header from casaviewer export, and will apply a GHz flag if necessary, as well as populating the coords variable with the coordinates from the header.
 	'''
 
-	global spec, coords, GHz, res, obs_name
+	global spec, coords, GHz, res, obs_name, draw_style
 
 	spec = x
 
@@ -1507,7 +1507,7 @@ def read_obs(x):
 	clear_line('obs')
 		
 	try:		
-		lines['obs'] = 	ax.plot(freq_obs,int_obs,color = 'black',label='obs',zorder=0)
+		lines['obs'] = 	ax.plot(freq_obs,int_obs,color = 'black',label='obs',zorder=0, drawstyle=draw_style)
 	except:
 		return
 		
