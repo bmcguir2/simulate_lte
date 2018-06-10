@@ -1777,7 +1777,7 @@ def load_mol(x,format='spcat'):
 	loads a new molecule into the system.  Make sure to store the old molecule simulation first, if you want to get it back.  The current graph will be updated with the new molecule.  Catalog file must be given as a string.  Simulation will begin with the same T, dV, C, vlsr as previous, so change those first if you want.
 	'''
 
-	global frequency,logint,error,dof,gup,tag,qn1,qn2,qn3,qn4,qn5,qn6,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,first_run,tbg,sijmu,gauss,aij		
+	global frequency,logint,error,dof,gup,tag,qn1,qn2,qn3,qn4,qn5,qn6,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,first_run,sijmu,gauss,aij		
 	
 	current = x
 	
@@ -1812,10 +1812,6 @@ def load_mol(x,format='spcat'):
 	qn10 = np.asarray(catalog[17])
 	qn11 = np.asarray(catalog[18])
 	qn12 = np.asarray(catalog[19])
-	
-	tbg = np.copy(elower)
-	
-	tbg.fill(2.7) #background temperature in the source, defaulting to CMB.  Can change this manually or with init_source()
 
 	eupper = np.copy(elower)
 
@@ -2060,6 +2056,8 @@ def sum_stored():
 		freq_tmp = trim_array(sim[x].frequency,sim[x].frequency,ll,ul)
 		
 		freq_tmp += (-sim[x].vlsr)*freq_tmp/ckm	
+		
+		Tbg = calc_tbg(tbg_params,tbg_type,tbg_range,freq_tmp)
 	
 		#tmp_freq_trimmed,tmp_int_trimmed = sim_gaussian(int_tmp,freq_tmp,sim[x].dV)
 	
@@ -2092,6 +2090,8 @@ def sum_stored():
 	#int_gauss_tau = (T - Tbg)*(1 - np.exp(-int_gauss))
 	
 	int_gauss_tau = int_gauss
+	
+	Tbg = calc_tbg(tbg_params,tbg_type,tbg_range,freq_gauss)
 	
 	int_gauss[int_gauss > (sim[x].T - Tbg)] = (sim[x].T - Tbg)
 	
@@ -2454,6 +2454,8 @@ def plot_residuals():
 		sijmu = (exp(np.float64(-(sim[x].elower/0.695)/CT)) - exp(np.float64(-(sim[x].eupper/0.695)/CT)))**(-1) * ((10**sim[x].logint)/sim[x].frequency) * ((4.16231*10**(-5))**(-1)) * Q
 	
 		tmp_int = np.copy(sim[x].intensity)
+		
+		Tbg = calc_tbg(tbg_params,tbg_type,tbg_range,tmp_freq)
 	
 		Q = calc_q(sim[x].qns,sim[x].elower,sim[x].qn7,sim[x].qn8,sim[x].qn9,sim[x].qn10,sim[x].qn11,sim[x].qn12,sim[x].T,sim[x].catalog_file)
 	
