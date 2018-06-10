@@ -38,6 +38,8 @@
 # 5.4 - minor correction to calculation of optically thick lines
 # 5.5 - added ability to cut out spectra around simulated stick spectra
 # 5.6 - update to autoset_limits() to not simulate where there's no data between the absolute upper and lower bounds
+# 5.7 - adds flag to run simulations using the Planck scale and a beam size to convert to Jy/beam
+# 6.0 - major update to Tbg handling
 
 #############################################################
 #							Preamble						#
@@ -66,7 +68,7 @@ import peakutils
 import math
 #warnings.filterwarnings('error')
 
-version = 5.6
+version = 6.0
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -79,7 +81,9 @@ cm = 2.998*10**8 #speed of light in m/s
 #							Warning 						#
 #############################################################
 
-print('\nWarning! This code is in beta. I believe the relative intensities for a given molecule are robust.  Column densities derived are a best-guess only, however, due to sometimes severe issues with the way JPL-format catalogs calculate partition functions and Sij values.') 
+print('\n--- MAJOR CHANGE STARTING IN VERSION 6.0 ---') 
+
+print('\nThere has been a major update to the way the program treats background temperatures.  It now allows for different background temperatures at different frequencies, as well as permitting functionalized backgrounds.  As a result, the old system of simply setting Tbg = X will no longer function in Version 6.0+.  Please see the documentation for the new protocols.') 
 
 #############################################################
 #							Defaults 						#
@@ -115,8 +119,6 @@ dV = 5.0 #linewidth of the simulation.  Default is 5.0 km/s.
 	
 CT = 300.0 #temperature the catalog is simulated at.  Default is 300 K.
 
-Tbg = 2.7 #background continuum temperature (K)
-
 gauss = True #toggle for simulating Gaussians or a stick spectrum.  Default is True.
 
 dish_size = 100 #for use if beam corrections are desired; given in meters
@@ -141,9 +143,54 @@ cavity_split = 0.826 #sets the default doppler splitting in the cavity to 0.826 
 
 draw_style = 'steps' #can be toggled on and off for going between drawing steps and drawing lines between points using use_steps() and use_lines()
 
+planck = False #flag to use planck scale.  If planck = True is enabled, a synthesized beam size must also be provided using synth_beam = [bmaj,bmin] below.
+
+synth_beam = ['bmaj','bmin'] #to be used with planck = True conversions.  Will throw an error if you don't set it in the program.
+
 sim = {} #dictionary to hold stored simulations
 
 lines = {} #dictionary to hold matplotlib lines
+
+tbg = [] #to hold background temperatures
+
+############ Tbg Parameters ##############
+
+#tbg_params is to hold the actual parameters used to calculate Tbg.  
+
+	#If it is a constant, then it can be passed an integer.  tbg_type must be 'poly' and tbg_order must be an integer 0.  These are the defaults.  Other possibilities are described below.
+
+tbg_params = 2.7
+
+#tbg_type can be the following:
+
+	#'poly' is a polynomial of order set by tbg_order = X, where X is the order and an integer.  If tbg_order = 0, tbg_params can be a float or a list with one value.  If tbg_order is greater than 0, then tbg_params must be a list of length = X+1.  So a first order polynomial needs two values [A,B] in the tbg_params: y = Ax + B.
+	
+	#'power' is a power law of the form Y = Ax^B + C.  tbg_params must be a list with three values [A,B,c]
+
+tbg_type = 'poly'
+
+#tbg_range can contain a list of paired upper and lower limits, themselves a length 2 list, for the sets of parameters in tbg_params to be used within.  If ranges are defined, any bit of the simulation not in the defined range defaults to 2.7 K.  float('-inf') or float('inf') are valid range values.
+
+tbg_range = []
+
+#Some examples:
+
+#To have three different frequency ranges (100000-120000 MHz, 150000-160000, and 190000-210000 MHz), all with their own tbg constants of 27, 32, and 37, the following must be input:
+
+	#tbg_params = [27,32,37]
+	#tbg_range = [[100000,120000],[150000,160000],[190000,210000]]
+	
+#To have a power law across the entire simulation, with Y = Ax^B = C and A = 2, B = 1.2, and C = 0:
+
+	#tbg_params = [2,1.2,0]
+	#tbg_type = 'power'
+
+#To have three polynomials, of orders 1, 3, and 4, over the three different ranges above, you'd need:
+
+	#tbg_params = [[1.2,5],[1.7,1.3,2,4],[2,4,-0.7,0.8,1.2]]
+	#tbg_range = [[100000,120000],[150000,160000],[190000,210000]]	
+
+##########################################
 
 vel_stacked = [] #to hold velocity-stacked spectra
 int_stacked = []
@@ -938,10 +985,14 @@ def sim_gaussian(int_sim,freq,linewidth):
 						
 		else:
 		
+			Tbg = calc_tbg(tbg_params,tbg_type,tbg_range,freq_gauss)
+		
 			J_T = (h*freq_gauss*10**6/k)*(np.exp(((h*freq_gauss*10**6)/(k*T))) -1)**-1
 			J_Tbg = (h*freq_gauss*10**6/k)*(np.exp(((h*freq_gauss*10**6)/(k*Tbg))) -1)**-1
 
 			int_gauss += int_sim[x]*exp(-((freq_gauss - freq[x])**2/(2*c**2)))
+	
+	Tbg = calc_tbg(tbg_params,tbg_type,tbg_range,freq_gauss)
 	
 	J_T = (h*freq_gauss*10**6/k)*(np.exp(((h*freq_gauss*10**6)/(k*T))) -1)**-1
 	J_Tbg = (h*freq_gauss*10**6/k)*(np.exp(((h*freq_gauss*10**6)/(k*Tbg))) -1)**-1
@@ -982,6 +1033,11 @@ def write_spectrum(x,output_file):
 	
 		freq_tmp = vel_stacked
 		int_tmp = int_stacked
+		
+	elif x == 'tbg':
+	
+		freq_tmp = freq_sim
+		int_tmp = tbg
 				
 	else:
 	
@@ -1087,12 +1143,40 @@ def run_sim(freq,intensity,T,dV,C):
 		
 	else:
 	
+		
 		freq_sim = freq_tmp
+
+		Tbg = calc_tbg(tbg_params,tbg_type,tbg_range,freq_sim)
 		
 		J_T = (h*freq_sim*10**6/k)*(np.exp(((h*freq_sim*10**6)/(k*T))) -1)**-1
 		J_Tbg = (h*freq_sim*10**6/k)*(np.exp(((h*freq_sim*10**6)/(k*Tbg))) -1)**-1
 		
 		int_sim = (J_T - J_Tbg)*(1 - np.exp(-int_temp))
+		
+	if planck == True:
+	
+		#calculate the beam solid angle, and throw an error if it hasn't been set.
+		
+		try:
+			omega = synth_beam[0]*synth_beam[1]*np.pi/(4*np.log(2))	
+		except TypeError:
+			print('You need to set a beam size to use for this conversion with synth_beam = [bmaj,bmin]')
+			print('Your simulation is still in Kelvin.')
+			return freq_sim,int_sim
+		
+		#create an array that's a copy of int_sim to work with temporarily
+			
+		int_jansky = np.copy(int_sim)
+		
+		#create a mask so we only work on non-zero values
+		
+		mask = int_jansky != 0
+		
+		#do the conversion
+		
+		int_jansky[mask] = (3.92E-8 * (freq_sim[mask]*1E-3)**3 *omega/ (np.exp(0.048*freq_sim[mask]*1E-3/int_sim[mask]) - 1))
+		
+		int_sim = int_jansky
 		
 	return freq_sim,int_sim
 	
@@ -2782,7 +2866,7 @@ def jy_to_k(bmaj,bmin,freq):
 	clear_line('obs')
 		
 	try:		
-		lines['obs'] = 	ax.plot(freq_obs,int_obs,color = 'black',label='obs',zorder=0)
+		lines['obs'] = 	ax.plot(freq_obs,int_obs,color = 'black',label='obs',zorder=0,drawstyle=draw_style)
 	except:
 		return
 		
@@ -2810,7 +2894,7 @@ def k_to_jy(bmaj,bmin,freq,sim=False):
 		clear_line('obs')
 		
 		try:		
-			lines['obs'] = 	ax.plot(freq_obs,int_obs,color = 'black',label='obs',zorder=0)
+			lines['obs'] = 	ax.plot(freq_obs,int_obs,color = 'black',label='obs',zorder=0,drawstyle=draw_style)
 		except:
 			return
 			
@@ -3661,6 +3745,247 @@ def cut_spectra(write=False,outputfile='cut.txt',n_fwhm=30):
 				
 		return
 
+#calc_tbg generates the background temperature wave.  The user should never call this directly.  A meta function to update tbg and re-run the simulation is provided as update()
+
+def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
+		
+	'''
+	calc_tbg generates the background temperature wave.  The user should never call this directly.  A meta function to update tbg and re-run the simulation is provided as update().  If ranges are defined, any chunk that is not in the defined range defaults to 2.7 K.
+	'''
+	
+	#figure out how many ranges we're dealing with
+	
+	n_ranges = len(tbg_range)
+	
+	#initialize a numpy array for tbg that is the same length as the requested array of covered frequencies
+	
+	tbg = np.zeros_like(frequencies)
+	
+	tbg = np.float64(tbg)
+
+	#first, make sure to get tbg_params into list form if it's a single integer or float
+	
+	if type(tbg_params) == int or type(tbg_params) == float:
+		
+		tbg_params = [tbg_params]
+			
+	#Will need to run several different possible scenarios here
+	
+	if tbg_type == 'poly':
+	
+		#if there's no range specified...
+	
+		if n_ranges == 0:
+
+			#we'll cycle through each order individually
+
+			for x in range(len(tbg_params)):
+				
+				#create a temporary array to handle what is going to be added to tbg for this order
+				
+				tmp_tbg = np.zeros_like(frequencies)
+				
+				tmp_tbg = np.float64(tmp_tbg)
+				
+				tmp_tbg = tbg_params[x]*frequencies**x
+				
+				tbg += tmp_tbg
+				
+			tbg[tbg == 0] = 2.7
+		
+			return tbg
+		
+		else:
+		
+			#before we can add to the tbg array, we need to find the indices we'll be wanting to work with for each range.  So.
+			
+			for i in range(n_ranges):
+			
+				#first, get the ll and ul for the range in question.
+			
+				ll = tbg_range[i][0]
+				ul = tbg_range[i][1]
+				
+				#next, let's get the indexes i_low and i_high this range covers in our frequencies.
+				
+				try:
+					i_low = np.where(frequencies > ll)[0][0]
+				except IndexError:
+				
+					#first, check and make sure this range is actually in the simulation.  If the ll is higher than the highest frequency in frequencies, just move on
+					
+					if frequencies[-1] < ll:
+						continue
+						
+					#otherwise, if the simulation starts after the lower limit, then we just take the first point in frequencies
+					
+					else:
+						i_low = 0
+						
+				try:
+					i_high = np.where(frequencies > ul)[0][0]
+				except IndexError:
+				
+					#If we can't find a point in frequencies that's above the upper limit, then the last point in the simulation is the upper limit index
+					i_high = len(frequencies)
+						
+				#now that we have the indices i_low and i_high we are going to want to apply our tbg to, we can do as above
+				
+				#first, lets just get the constants for this particular range
+					
+				constants = tbg_params[i]
+				
+				if type(constants) == float or type(constants) == int:
+				
+					constants = [constants]
+				
+				#now we cycle through the orders again
+				
+				for x in range(len(constants)):
+				
+					#create a temporary array to handle what is going to be added to tbg for this order
+					
+					tmp_tbg = np.zeros_like(frequencies)
+					
+					tmp_tbg = np.float64(tmp_tbg)
+					
+					tmp_tbg = constants[x]*freq_sim**x
+					
+					tbg[i_low:i_high] += tmp_tbg[i_low:i_high]		
+					
+			tbg[tbg == 0] = 2.7
+			
+			return tbg			
+						
+	elif tbg_type == 'power':
+	
+		#if there's no range specified...
+	
+		if n_ranges == 0:
+
+			#create a temporary array to handle what is going to be added to tbg for this order
+				
+			tmp_tbg = np.zeros_like(frequencies)
+			
+			tmp_tbg = np.float64(tmp_tbg)
+		
+			tmp_tbg = tbg_params[0]*freq_sim**tbg_params[1] + tbg_params[3]
+		
+			tbg += tmp_tbg
+		
+			tbg[tbg == 0] = 2.7
+
+			return tbg
+		
+		else:
+		
+			#before we can add to the tbg array, we need to find the indices we'll be wanting to work with for each range.  So.
+			
+			for i in range(n_ranges):
+			
+				#first, get the ll and ul for the range in question.
+			
+				ll = tbg_range[i][0]
+				ul = tbg_range[i][1]
+				
+				#next, let's get the indexes i_low and i_high this range covers in our freq_sim.
+				
+				try:
+					i_low = np.where(frequencies > ll)[0][0]
+				except IndexError:
+				
+					#first, check and make sure this range is actually in the simulation.  If the ll is higher than the highest frequency in frequencies, just move on
+					
+					if frequencies[-1] < ll:
+						continue
+						
+					#otherwise, if the simulation starts after the lower limit, then we just take the first point in frequencies
+					
+					else:
+						i_low = 0
+						
+				try:
+					i_high = np.where(frequencies > ul)[0][0]
+				except IndexError:
+				
+					#If we can't find a point in the simulation that's above the upper limit, then the last point in the simulation is the upper limit index
+					
+					i_high = len(frequencies)
+						
+				#now that we have the indices i_low and i_high we are going to want to apply our tbg to, we can do as above
+				
+				#first, lets just get the constants for this particular range
+				
+				constants = tbg_params[i]
+			
+				tmp_tbg = np.zeros_like(frequencies)
+				
+				tmp_tbg = np.float64(tmp_tbg)
+		
+				tmp_tbg = constants[0]*frequencies**constants[1] + constants[3]				
+					
+				tbg[i_low:i_high] += tmp_tbg[i_low:i_high]		
+					
+			tbg[tbg == 0] = 2.7
+			
+			return tbg					
+	
+	else:
+	
+		print('Your Tbg calls are not set properly. This is likely because you have tbg_type set to something other than poly or power. Tbg has been defaulted to the CMB value of 2.7 K across your entire simulation.  Please see the Tbg documentation if this is not what you desire.')
+		
+		tbg = np.zeros_like(frequencies)
+		
+		tbg = np.float64(tbg)
+		
+		tbg += 2.7
+		
+		return tbg
+				
+				
+#update is a general call to just re-run the simulation, if the user has modified any generalized variables themselves like Tbg stuff, or updated vlsr or dV, etc, without using mod functions.
+
+def update():
+
+	'''
+	A general call to just re-run the simulation, if the user has modified any generalized variables themselves like Tbg stuff, or updated vlsr or dV, etc, without using mod functions.
+	'''
+
+	global freq_sim,int_sim
+		
+	freq_tmp = np.copy(frequency)
+	
+	freq_tmp += (-vlsr)*freq_tmp/ckm		
+	
+	freq_sim,int_sim = run_sim(freq_tmp,intensity,T,dV,C)
+	
+	clear_line('current')
+	
+	if gauss == False:
+
+		lines['current'] = ax.vlines(freq_sim,0,int_sim,linestyle = '-',color = 'red',label='current',zorder=500) #Plot sticks from TA down to 0 at each point in freq.
+
+	else:
+
+		lines['current'] = ax.plot(freq_sim,int_sim,color = 'red',label='current',drawstyle=draw_style,zorder=500)
+		
+	with warnings.catch_warnings():
+		warnings.simplefilter('ignore')
+		ax.legend()
+	fig.canvas.draw()
+	
+	save_results('last.results')
+
+#reset_tbg just resets all the tbg parameters to the defaults and calls update()
+
+def reset_tbg():
+
+	global tbg_params,tbg_type,tbg_range
+	
+	tbg_params = 2.7
+	tbg_type = 'poly'
+	tbg_range = []
+	update()
 
 #############################################################
 #							Classes for Storing Results		#
