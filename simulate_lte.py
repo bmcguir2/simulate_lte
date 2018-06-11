@@ -1835,18 +1835,18 @@ def load_mol(x,format='spcat'):
 	
 	freq_sim,int_sim=run_sim(tmp_freq,intensity,T,dV,C)
 	
-	if gauss == True:
-	
-		gauss = False
-		
-		freq_stick,int_stick=run_sim(tmp_freq,intensity,T,dV,C)
-		
-		gauss = True
-		
-	else:
-	
-		freq_stick = np.asarray([freq_sim])
-		int_stick = np.asarray([int_sim])
+	# if gauss == True:
+# 	
+# 		gauss = False
+# 		
+# 		freq_stick,int_stick=run_sim(tmp_freq,intensity,T,dV,C)
+# 		
+# 		gauss = True
+# 		
+# 	else:
+# 	
+# 		freq_stick = np.asarray([freq_sim])
+# 		int_stick = np.asarray([int_sim])
 		
 
 	if first_run == True:
@@ -2216,6 +2216,9 @@ def restore(x):
 		gauss = True
 	else:
 		gauss = False
+		
+	if gauss == False:
+		print('I just set gauss = False.')
 		
 	#are observations read in in GHz?
 	
