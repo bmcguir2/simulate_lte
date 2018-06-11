@@ -40,6 +40,7 @@
 # 5.6 - update to autoset_limits() to not simulate where there's no data between the absolute upper and lower bounds
 # 5.7 - adds flag to run simulations using the Planck scale and a beam size to convert to Jy/beam
 # 6.0 - major update to Tbg handling
+# 6.1 - streamlining the calculations of gaussian after the tbg updates
 
 #############################################################
 #							Preamble						#
@@ -68,7 +69,7 @@ import peakutils
 import math
 #warnings.filterwarnings('error')
 
-version = 6.0
+version = 6.1
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -984,11 +985,6 @@ def sim_gaussian(int_sim,freq,linewidth):
 			int_gauss += 0.5*int_sim[x]*exp(-((freq_gauss - freq_h)**2/(2*c**2)))
 						
 		else:
-		
-			Tbg = calc_tbg(tbg_params,tbg_type,tbg_range,freq_gauss)
-		
-			J_T = (h*freq_gauss*10**6/k)*(np.exp(((h*freq_gauss*10**6)/(k*T))) -1)**-1
-			J_Tbg = (h*freq_gauss*10**6/k)*(np.exp(((h*freq_gauss*10**6)/(k*Tbg))) -1)**-1
 
 			int_gauss += int_sim[x]*exp(-((freq_gauss - freq[x])**2/(2*c**2)))
 	
@@ -2065,47 +2061,48 @@ def sum_stored():
 		
 			l_f = sim[x].dV*freq_tmp[y]/ckm #get the FWHM in MHz
 			
-			c = l_f/2.35482
+			c = l_f/2.35482			
 			
-			int_tmp_tau = (sim[x].T - Tbg)*(1 - np.exp(-int_tmp[y]))
+			#int_tmp_tau = (sim[x].T - Tbg)*(1 - np.exp(-int_tmp[y]))
 			
-			int_tmp_tau_gauss = int_tmp_tau*exp(-((freq_gauss - freq_tmp[y])**2/(2*c**2)))
-			
-			if planck == True:
-	
-				#calculate the beam solid angle, and throw an error if it hasn't been set.
-		
-				try:
-					omega = synth_beam[0]*synth_beam[1]*np.pi/(4*np.log(2))	
-				except TypeError:
-					print('You need to set a beam size to use for this conversion with synth_beam = [bmaj,bmin]')
-					print('Your simulation is still in Kelvin.')
-					return 
-		
-				#create an array that's a copy of int_sim to work with temporarily
-			
-				int_jansky = np.copy(int_tmp_tau_gauss)
-		
-				#create a mask so we only work on non-zero values
-		
-				mask = int_jansky != 0
-		
-				#do the conversion
-		
-				int_jansky[mask] = (3.92E-8 * (freq_gauss[mask]*1E-3)**3 *omega/ (np.exp(0.048*freq_gauss[mask]*1E-3/int_tmp_tau_gauss[mask]) - 1))
-		
-				int_tmp_tau_gauss = int_jansky			
-			
+			int_tmp_tau_gauss = int_tmp[y]*exp(-((freq_gauss - freq_tmp[y])**2/(2*c**2)))
+				
 			int_gauss += int_tmp_tau_gauss
+			
+	Tbg = calc_tbg(tbg_params,tbg_type,tbg_range,freq_gauss)		
 		
-	int_gauss_tau = int_gauss
+	J_T = (h*freq_gauss*10**6/k)*(np.exp(((h*freq_gauss*10**6)/(k*T))) -1)**-1
+	J_Tbg = (h*freq_gauss*10**6/k)*(np.exp(((h*freq_gauss*10**6)/(k*Tbg))) -1)**-1
+		
+	int_gauss = (J_T - J_Tbg)*(1 - np.exp(-int_gauss))					
+
+	if planck == True:
+
+		#calculate the beam solid angle, and throw an error if it hasn't been set.
+
+		try:
+			omega = synth_beam[0]*synth_beam[1]*np.pi/(4*np.log(2))	
+		except TypeError:
+			print('You need to set a beam size to use for this conversion with synth_beam = [bmaj,bmin]')
+			print('Cannot produce an accurate summed spectrum')
+			return 
+
+		#create an array that's a copy of int_sim to work with temporarily
 	
-#	Tbg = calc_tbg(tbg_params,tbg_type,tbg_range,freq_gauss)
-	
-#	int_gauss[int_gauss > (sim[x].T - Tbg)] = (sim[x].T - Tbg)
+		int_jansky = np.copy(int_gauss)
+
+		#create a mask so we only work on non-zero values
+
+		mask = int_jansky != 0
+
+		#do the conversion
+
+		int_jansky[mask] = (3.92E-8 * (freq_gauss[mask]*1E-3)**3 *omega/ (np.exp(0.048*freq_gauss[mask]*1E-3/int_gauss[mask]) - 1))
+
+		int_gauss = int_jansky			
 	
 	freq_sum = freq_gauss
-	int_sum = int_gauss_tau		
+	int_sum = int_gauss		
 	
 	overplot_sum()
 
