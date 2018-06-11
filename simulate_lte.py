@@ -3851,7 +3851,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 					
 					tmp_tbg = np.float64(tmp_tbg)
 					
-					tmp_tbg = constants[x]*freq_sim**x
+					tmp_tbg = constants[x]*frequencies**x
 					
 					tbg[i_low:i_high] += tmp_tbg[i_low:i_high]		
 					
