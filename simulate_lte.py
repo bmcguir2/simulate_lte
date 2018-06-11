@@ -2057,7 +2057,7 @@ def sum_stored():
 		
 		freq_tmp += (-sim[x].vlsr)*freq_tmp/ckm	
 		
-		Tbg = calc_tbg(tbg_params,tbg_type,tbg_range,freq_tmp)
+		Tbg = calc_tbg(tbg_params,tbg_type,tbg_range,freq_gauss)
 	
 		#tmp_freq_trimmed,tmp_int_trimmed = sim_gaussian(int_tmp,freq_tmp,sim[x].dV)
 	
@@ -2069,31 +2069,40 @@ def sum_stored():
 			
 			int_tmp_tau = (sim[x].T - Tbg)*(1 - np.exp(-int_tmp[y]))
 			
-			int_gauss += int_tmp_tau*exp(-((freq_gauss - freq_tmp[y])**2/(2*c**2)))
-		
-		#for y in range(len(tmp_int_trimmed)):
-		
-		#	if abs(tmp_int_trimmed[y]) < 0.001:
+			int_tmp_tau_gauss = int_tmp_tau*exp(-((freq_gauss - freq_tmp[y])**2/(2*c**2)))
 			
-		#		continue
-		
-		#	l_f = sim[x].dV*tmp_freq_trimmed[y]/ckm #get the FWHM in MHz
-			
-		#	c = l_f/2.35482
-			
-		#	int_tmp_tau = (sim[x].T - Tbg)*(1 - np.exp(-tmp_int_trimmed[y]))
-
-		#	int_gauss += int_tmp_tau*exp(-((freq_gauss - tmp_freq_trimmed[y])**2/(2*c**2)))
-
-			#int_gauss += tmp_int_trimmed[y]*exp(-((freq_gauss - tmp_freq_trimmed[y])**2/(2*c**2)))
-			
-	#int_gauss_tau = (T - Tbg)*(1 - np.exp(-int_gauss))
+			if planck == True:
 	
+				#calculate the beam solid angle, and throw an error if it hasn't been set.
+		
+				try:
+					omega = synth_beam[0]*synth_beam[1]*np.pi/(4*np.log(2))	
+				except TypeError:
+					print('You need to set a beam size to use for this conversion with synth_beam = [bmaj,bmin]')
+					print('Your simulation is still in Kelvin.')
+					return 
+		
+				#create an array that's a copy of int_sim to work with temporarily
+			
+				int_jansky = np.copy(int_tmp_tau_gauss)
+		
+				#create a mask so we only work on non-zero values
+		
+				mask = int_jansky != 0
+		
+				#do the conversion
+		
+				int_jansky[mask] = (3.92E-8 * (freq_gauss[mask]*1E-3)**3 *omega/ (np.exp(0.048*freq_gauss[mask]*1E-3/int_tmp_tau_gauss[mask]) - 1))
+		
+				int_tmp_tau_gauss = int_jansky			
+			
+			int_gauss += int_tmp_tau_gauss
+		
 	int_gauss_tau = int_gauss
 	
-	Tbg = calc_tbg(tbg_params,tbg_type,tbg_range,freq_gauss)
+#	Tbg = calc_tbg(tbg_params,tbg_type,tbg_range,freq_gauss)
 	
-	int_gauss[int_gauss > (sim[x].T - Tbg)] = (sim[x].T - Tbg)
+#	int_gauss[int_gauss > (sim[x].T - Tbg)] = (sim[x].T - Tbg)
 	
 	freq_sum = freq_gauss
 	int_sum = int_gauss_tau		
