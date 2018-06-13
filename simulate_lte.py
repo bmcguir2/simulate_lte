@@ -2634,11 +2634,11 @@ def print_lines(mol='current',thresh=0.0001,rest=True):
 			
 					frequency_tmp_shift = frequency[y][i] - vlsr*frequency[y][i]/3E5				
 	
-					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper[y][i]/0.695,gJ,np.log10(aij[y][i])))
+					print_array.append('{:.4f} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper[y][i]/0.695,gJ,np.log10(aij[y][i])))
 				
 				else:
 			
-					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency[y][i],int_tmp[x],qn_string,eupper[y][i]/0.695,gJ,np.log10(aij[y][i])))
+					print_array.append('{:.4f} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency[y][i],int_tmp[x],qn_string,eupper[y][i]/0.695,gJ,np.log10(aij[y][i])))
 					
 				old_f = freq_tmp[x]	
 						
@@ -2746,11 +2746,11 @@ def print_lines(mol='current',thresh=0.0001,rest=True):
 				
 					frequency_tmp_shift = frequency_tmp[y][i] - vlsr_tmp*frequency_tmp[y][i]/3E5
 			
-					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper_tmp[y][i]/0.695,gJ,np.log10(aij_tmp[y][i])))
+					print_array.append('{:.4f} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper_tmp[y][i]/0.695,gJ,np.log10(aij_tmp[y][i])))
 				
 				else:
 				
-					print_array.append('{:} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency_tmp[y][i],int_tmp[x],qn_string,eupper_tmp[y][i]/0.695,gJ,np.log10(aij_tmp[y][i])))
+					print_array.append('{:.4f} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency_tmp[y][i],int_tmp[x],qn_string,eupper_tmp[y][i]/0.695,gJ,np.log10(aij_tmp[y][i])))
 					
 				old_f = freq_tmp[x]		
 			
