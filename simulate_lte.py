@@ -41,6 +41,7 @@
 # 5.7 - adds flag to run simulations using the Planck scale and a beam size to convert to Jy/beam
 # 6.0 - major update to Tbg handling
 # 6.1 - streamlining the calculations of gaussian after the tbg updates
+# 6.2 - adds sgr b2 non-thermal background option
 
 #############################################################
 #							Preamble						#
@@ -69,7 +70,7 @@ import peakutils
 import math
 #warnings.filterwarnings('error')
 
-version = 6.1
+version = 6.2
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -167,6 +168,8 @@ tbg_params = 2.7
 	#'poly' is a polynomial of order set by tbg_order = X, where X is the order and an integer.  If tbg_order = 0, tbg_params can be a float or a list with one value.  If tbg_order is greater than 0, then tbg_params must be a list of length = X+1.  So a first order polynomial needs two values [A,B] in the tbg_params: y = Ax + B.
 	
 	#'power' is a power law of the form Y = Ax^B + C.  tbg_params must be a list with three values [A,B,c]
+	
+	#'sgrb2' invokes a special value tbg = (10**(-1.06*np.log10(frequency/1000) + 2.3))
 
 tbg_type = 'poly'
 
@@ -3940,6 +3943,16 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 			tbg[tbg == 0] = 2.7
 			
 			return tbg					
+	
+	elif tbg_type == 'sgrb2':
+	
+		tmp_tbg = np.zeros_like(frequencies)
+		
+		tmp_tbg = (10**(-1.06*np.log10(frequencies/1000) + 2.3))
+		
+		tbg = apply_beam(frequencies,tmp_tbg,source_size,dish_size)
+		
+		return tbg
 	
 	else:
 	
