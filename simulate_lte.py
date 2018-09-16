@@ -42,6 +42,7 @@
 # 6.0 - major update to Tbg handling
 # 6.1 - streamlining the calculations of gaussian after the tbg updates
 # 6.2 - adds sgr b2 non-thermal background option
+# 6.3 - fixes bug in polynomial continuum temperature calculation
 
 #############################################################
 #							Preamble						#
@@ -70,7 +71,7 @@ import peakutils
 import math
 #warnings.filterwarnings('error')
 
-version = 6.2
+version = 6.3
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -1811,6 +1812,37 @@ def load_mol(x,format='spcat'):
 	qn10 = np.asarray(catalog[17])
 	qn11 = np.asarray(catalog[18])
 	qn12 = np.asarray(catalog[19])
+
+#For future implementation of screening by error:
+	
+# 	mask = np.ones(len(frequency),dtype=bool)
+# 
+# 	for x in range(len(error)):
+# 
+# 		if error[x] > 0.1:
+# 	
+# 			mask[x] = False
+# 		
+# 	frequency = frequency[mask]
+# 	error = error[mask]
+# 	logint = logint[mask]
+# 	dof = dof[mask]
+# 	elower = elower[mask]
+# 	gup = gup[mask]
+# 	tag = tag[mask]
+# 	qnformat = qnformat[mask]
+# 	qn1 = qn1[mask]
+# 	qn2 = qn2[mask]
+# 	qn3 = qn3[mask]
+# 	qn4 = qn4[mask]
+# 	qn5 = qn5[mask]
+# 	qn6 = qn6[mask]
+# 	qn7 = qn7[mask]
+# 	qn8 = qn8[mask]
+# 	qn9 = qn9[mask]
+# 	qn10 = qn10[mask]
+# 	qn11 = qn11[mask]
+# 	qn12 = qn12[mask]
 
 	eupper = np.copy(elower)
 
@@ -3787,13 +3819,17 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 	
 	if tbg_type == 'poly':
 	
+		#need to reverse sort that list so that the ordering is correct, because it's specified by the user as : y = Ax^2 + Bx + C as [A,B,C], but the script below wants it in the order [C, B, A].
+		
+		tbg_params_tmp = tbg_params[::-1]	
+	
 		#if there's no range specified...
 	
 		if n_ranges == 0:
 
 			#we'll cycle through each order individually
 
-			for x in range(len(tbg_params)):
+			for x in range(len(tbg_params_tmp)):
 				
 				#create a temporary array to handle what is going to be added to tbg for this order
 				
@@ -3801,7 +3837,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 				
 				tmp_tbg = np.float64(tmp_tbg)
 				
-				tmp_tbg = tbg_params[x]*frequencies**x
+				tmp_tbg = tbg_params_tmp[x]*frequencies**x
 				
 				tbg += tmp_tbg
 				
@@ -3847,7 +3883,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 				
 				#first, lets just get the constants for this particular range
 					
-				constants = tbg_params[i]
+				constants = tbg_params_tmp[i]
 				
 				if type(constants) == float or type(constants) == int:
 				
