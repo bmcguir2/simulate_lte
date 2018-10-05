@@ -43,6 +43,7 @@
 # 6.1 - streamlining the calculations of gaussian after the tbg updates
 # 6.2 - adds sgr b2 non-thermal background option
 # 6.3 - fixes bug in polynomial continuum temperature calculation
+# 6.4 - added utility function for checking Tbg at a given frequency
 
 #############################################################
 #							Preamble						#
@@ -71,7 +72,7 @@ import peakutils
 import math
 #warnings.filterwarnings('error')
 
-version = 6.3
+version = 6.4
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -4001,6 +4002,16 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 		tbg += 2.7
 		
 		return tbg
+		
+#check_tbg checks the value of Tbg at a given frequency
+
+def check_tbg(frequency):
+
+	freq_tmp = np.asarray([frequency,frequency])
+	
+	tbg_tmp = calc_tbg(tbg_params,tbg_type,tbg_range,freq_tmp)
+	
+	return tbg_tmp[0]
 				
 				
 #update is a general call to just re-run the simulation, if the user has modified any generalized variables themselves like Tbg stuff, or updated vlsr or dV, etc, without using mod functions.
