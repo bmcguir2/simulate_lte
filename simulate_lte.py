@@ -44,6 +44,7 @@
 # 6.2 - adds sgr b2 non-thermal background option
 # 6.3 - fixes bug in polynomial continuum temperature calculation
 # 6.4 - added utility function for checking Tbg at a given frequency
+# 6.5 - bug fix to beam dilution correction for sgr b2 non-thermal background continuum
 
 #############################################################
 #							Preamble						#
@@ -72,7 +73,7 @@ import peakutils
 import math
 #warnings.filterwarnings('error')
 
-version = 6.4
+version = 6.5
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -1108,6 +1109,42 @@ def apply_beam(frequency,intensity,source_size,dish_size):
 	intensity_diluted *= dilution_factor
 	
 	return intensity_diluted
+	
+#invert_beam applies a beam dilution correction factor in the other direction (used for tbg corrections - takes an observed tbg and returns what it actually should be un-diluted)
+
+def invert_beam(frequency,intensity,source_size,dish_size):
+
+	#create a wave to hold wavelengths, fill it to start w/ frequencies
+
+	wavelength = np.copy(frequency)
+	
+	#Convert those frequencies to Hz
+	
+	wavelength *= 1.0E6
+	
+	#Convert to meters
+	
+	wavelength = cm/wavelength
+	
+	#create an array to hold beam sizes
+	
+	beam_size = np.copy(wavelength)
+	
+	#fill it with beamsizes
+	
+	beam_size *= 206265 * 1.22 / dish_size
+	
+	#create an array to hold beam dilution factors
+	
+	dilution_factor = np.copy(beam_size)
+	
+	dilution_factor = source_size**2/(beam_size**2 + source_size**2)
+	
+	intensity_undiluted = np.copy(intensity)
+	
+	intensity_undiluted /= dilution_factor
+	
+	return intensity_undiluted	
 	
 #run_sim runs the simulation.  It's a meta routine, so that we can update later
 
@@ -3987,7 +4024,9 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 		
 		tmp_tbg = (10**(-1.06*np.log10(frequencies/1000) + 2.3))
 		
-		tbg = apply_beam(frequencies,tmp_tbg,source_size,dish_size)
+		#fix the beam dilution to the continuum, using the known source size and dish size
+		
+		tbg = invert_beam(frequencies,tmp_tbg,20,100)
 		
 		return tbg
 	
@@ -4007,7 +4046,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 
 def check_tbg(frequency):
 
-	freq_tmp = np.asarray([frequency,frequency])
+	freq_tmp = np.asarray([np.float64(frequency),np.float64(frequency)])
 	
 	tbg_tmp = calc_tbg(tbg_params,tbg_type,tbg_range,freq_tmp)
 	
