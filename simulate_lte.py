@@ -45,6 +45,7 @@
 # 6.3 - fixes bug in polynomial continuum temperature calculation
 # 6.4 - added utility function for checking Tbg at a given frequency
 # 6.5 - bug fix to beam dilution correction for sgr b2 non-thermal background continuum
+# 6.6 - bug fix to planck conversion in the solid angle calculation
 
 #############################################################
 #							Preamble						#
@@ -73,7 +74,7 @@ import peakutils
 import math
 #warnings.filterwarnings('error')
 
-version = 6.5
+version = 6.6
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -1196,7 +1197,8 @@ def run_sim(freq,intensity,T,dV,C):
 		#calculate the beam solid angle, and throw an error if it hasn't been set.
 		
 		try:
-			omega = synth_beam[0]*synth_beam[1]*np.pi/(4*np.log(2))	
+			omega = synth_beam[0]*synth_beam[1] #the conversion below already has the volume element built in
+			#omega = synth_beam[0]*synth_beam[1]*np.pi/(4*np.log(2))	
 		except TypeError:
 			print('You need to set a beam size to use for this conversion with synth_beam = [bmaj,bmin]')
 			print('Your simulation is still in Kelvin.')
@@ -2154,7 +2156,8 @@ def sum_stored():
 		#calculate the beam solid angle, and throw an error if it hasn't been set.
 
 		try:
-			omega = synth_beam[0]*synth_beam[1]*np.pi/(4*np.log(2))	
+			omega = synth_beam[0]*synth_beam[1] #the conversion below already has the volume element built in
+			#omega = synth_beam[0]*synth_beam[1]*np.pi/(4*np.log(2))	
 		except TypeError:
 			print('You need to set a beam size to use for this conversion with synth_beam = [bmaj,bmin]')
 			print('Cannot produce an accurate summed spectrum')
