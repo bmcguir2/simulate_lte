@@ -46,6 +46,9 @@
 # 6.4 - added utility function for checking Tbg at a given frequency
 # 6.5 - bug fix to beam dilution correction for sgr b2 non-thermal background continuum
 # 6.6 - bug fix to planck conversion in the solid angle calculation
+# 6.7 - added greybody continuum option
+# 6.8 - update to print_lines() to show sijmu.
+# 6.9 - added ability to add vibrational corrections to partition function.
 
 #############################################################
 #							Preamble						#
@@ -74,7 +77,7 @@ import peakutils
 import math
 #warnings.filterwarnings('error')
 
-version = 6.6
+version = 6.9
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -143,7 +146,7 @@ res = 0.01 #resolution used in Gaussian simulation if res_kHz or res_kms is set 
 
 cavity_ftmw = False #if set to True, simulates doubler doublets from the cavity FTMW. 
 
-cavity_dV = 0.13 #sets the default cavity linewidth to 0.2 km/s
+cavity_dV = 0.13 #sets the default cavity linewidth to 0.13 km/s
 
 cavity_split = 0.826 #sets the default doppler splitting in the cavity to 0.826 km/s in each direction.
 
@@ -174,6 +177,14 @@ tbg_params = 2.7
 	#'power' is a power law of the form Y = Ax^B + C.  tbg_params must be a list with three values [A,B,c]
 	
 	#'sgrb2' invokes a special value tbg = (10**(-1.06*np.log10(frequency/1000) + 2.3))
+	
+	#'greybody' is a greybody continuum, requiring parameters: 		
+		#T = tbg_params[0] #in Kelvin
+		#beta = tbg_params[1] 
+		#tauref = tbg_params[2] 
+		#taufreq = tbg_params[3] #in GHz
+		#major = tbg_params[4] #major axis of beam in arcsec
+		#minor = tbg_params[5] #minor axis of beam in arcsec
 
 tbg_type = 'poly'
 
@@ -197,6 +208,8 @@ tbg_range = []
 
 	#tbg_params = [[1.2,5],[1.7,1.3,2,4],[2,4,-0.7,0.8,1.2]]
 	#tbg_range = [[100000,120000],[150000,160000],[190000,210000]]	
+
+
 
 ##########################################
 
@@ -690,7 +703,7 @@ def det_qns(qnformat):
 
 #calc_q will dynamically calculate a partition function whenever needed at a given T.  The catalog file used must have enough lines in it to fully capture the partition function, or the result will not be accurate for Q.
 	
-def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file):
+def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 
 	'''
 	Dynamically calculates a partition function whenever needed at a given T.  The catalog file used must have enough lines in it to fully capture the partition function, or the result will not be accurate for Q.  This is perfectly fine for the *relative* intensities of lines for a given molecule used by this program.  However, absolute intensities between molecules are not remotely accurate.  
@@ -742,6 +755,27 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file):
 	elif '13ch3oh.cat' in catalog_file.lower() or 'c033502.cat' in catalog_file.lower():
 	
 		Q = 0.399272*T**1.756329
+		
+	elif 'aceticacid' in catalog_file.lower():
+	
+		Q = 0.0009051494*T**3 + 2.3370894781*T**2 - 34.5494711437*T + 1110.8534245568
+		
+	elif 'methylformate' in catalog_file.lower() and '13' not in catalog_file.lower():
+	
+		Q = 1.789212*T**2 + 135.630221*T - 1422.683256
+		
+	elif 'glycolaldehyde' in catalog_file.lower() and '13' not in catalog_file.lower():
+	
+		Q = 0.000501*T**3 + 0.562444*T**2 + 14.005379*T + 114.004177
+		
+	elif 'h2ccs' in catalog_file.lower():
+	
+		Q = -0.00000000328379*T**5 + 0.000002934039*T**4 -0.001093668*T**3 + 0.315766*T**2 + 12.08729*T - 66.79358
+		
+	elif 'ch3nh2' in catalog_file.lower():
+	
+		#Q = 23.82947*T**(1.50124) #JPL DATABASE VALUE
+		Q = 5.957729*T**(1.501233) #Ilyushin 2014 paper value
 	
 	else:
 	
@@ -837,8 +871,31 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file):
 				Q += (2*J+1)*exp(np.float64(-E/(kcm*T))) #Add it to Q
 			
 		#result = [Q,ustates] #can enable this function to check the number of states used in the calculation, but note that this will break calls to Q further down that don't go after element 0.
+		
+	qvib = calc_qvib(vibs,T)
+	
+	Q *= qvib
 	
 	return Q
+	
+		
+#calc_qvib calculates the vibrational contribution to the partition function.
+
+def calc_qvib(vibs,T):
+
+	if vibs == None:
+	
+		qvib = 1
+		
+	else:
+	
+		qvib = 1
+		
+		for x in vibs:
+		
+			qvib *= 1/(1-np.exp(-x/(0.695*T)))		
+				
+	return qvib	
 
 #scale_temp scales the simulated intensities to the new temperature
 
@@ -852,7 +909,7 @@ def scale_temp(int_sim,qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,CT,catalog_file):
 	
 	scaled_int *= 0.0
 	
-	Q_T = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file)
+	Q_T = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs)
 	Q_CT = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file)
 
 	
@@ -1158,7 +1215,7 @@ def run_sim(freq,intensity,T,dV,C):
 	np.seterr(under='ignore')
 	np.seterr(over='ignore')
 	
-	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file)
+	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs)
 	
 	Nl = C * (2*qn7 + 1) * np.exp(-elower/(0.695 * T)) / Q
 	
@@ -1224,7 +1281,7 @@ def run_sim(freq,intensity,T,dV,C):
 
 def check_Q(x):
 
-	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,x,catalog_file)
+	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,x,catalog_file,vibs)
 	
 	print('Q({}) = {:.0f}' .format(x,Q))
 
@@ -1674,7 +1731,9 @@ def store(x=None):
 	
 		x = '{}' .format(catalog_file.split('.')[0].strip('\n').split('/')[-1]) 
 	
-	sim[x] = Molecule(x,catalog_file,tag,gup,dof,error,qn1,qn2,qn3,qn4,qn5,qn6,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim,aij,sijmu)
+	print(vibs)
+	
+	sim[x] = Molecule(x,catalog_file,tag,gup,dof,error,qn1,qn2,qn3,qn4,qn5,qn6,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim,aij,sijmu,vibs)
 	
 	if auto_update == True:
 	
@@ -1696,7 +1755,7 @@ def recall(x):
 
 	save_results('last.results')
 
-	global elower,eupper,qns,logint,qn1,qn2,qn3,qn4,qn5,qn6,qn7,qn8,qn9,qn10,qn11,qn12,S,dV,T,vlsr,frequency,freq_sim,intensity,int_sim,current,catalog_file,sijmu,C,tag,gup,error,aij
+	global elower,eupper,qns,logint,qn1,qn2,qn3,qn4,qn5,qn6,qn7,qn8,qn9,qn10,qn11,qn12,S,dV,T,vlsr,frequency,freq_sim,intensity,int_sim,current,catalog_file,sijmu,C,tag,gup,error,aij,vibs
 	
 	current = sim[x].name
 	elower = sim[x].elower
@@ -1730,6 +1789,7 @@ def recall(x):
 	catalog_file = sim[x].catalog_file
 	aij = sim[x].aij
 	sijmu = sim[x].sijmu
+	vibs = sim[x].vibs
 
 	try:
 		clear_line('current')
@@ -1740,7 +1800,7 @@ def recall(x):
 	
 	tmp_freq += (-vlsr)*tmp_freq/ckm
 	
-	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file)
+	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file,vibs)
 	
 	freq_sim,int_sim=run_sim(tmp_freq,intensity,T,dV,C)	
 		
@@ -1811,13 +1871,13 @@ def overplot(x,cchoice=None):
 		
 #load_mol loads a new molecule into the system.  Make sure to store the old molecule simulation first, if you want to get it back.  The current graph will be updated with the new molecule.  Catalog file must be given as a string.  Simulation will begin with the same T, dV, S, vlsr as previous, so change those first if you want.
 
-def load_mol(x,format='spcat'):
+def load_mol(x,format='spcat',vib_states=None):
 
 	'''
 	loads a new molecule into the system.  Make sure to store the old molecule simulation first, if you want to get it back.  The current graph will be updated with the new molecule.  Catalog file must be given as a string.  Simulation will begin with the same T, dV, C, vlsr as previous, so change those first if you want.
 	'''
 
-	global frequency,logint,error,dof,gup,tag,qn1,qn2,qn3,qn4,qn5,qn6,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,first_run,sijmu,gauss,aij		
+	global frequency,logint,error,dof,gup,tag,qn1,qn2,qn3,qn4,qn5,qn6,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,first_run,sijmu,gauss,aij,vibs
 	
 	current = x
 	
@@ -1852,6 +1912,7 @@ def load_mol(x,format='spcat'):
 	qn10 = np.asarray(catalog[17])
 	qn11 = np.asarray(catalog[18])
 	qn12 = np.asarray(catalog[19])
+	vibs = vib_states
 
 #For future implementation of screening by error:
 	
@@ -1896,7 +1957,7 @@ def load_mol(x,format='spcat'):
 	
 	tmp_freq += (-vlsr)*tmp_freq/ckm
 	
-	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file)
+	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file,vibs)
 
 	sijmu = (exp(np.float64(-(elower/0.695)/CT)) - exp(np.float64(-(eupper/0.695)/CT)))**(-1) * ((10**logint)/frequency) * ((4.16231*10**(-5))**(-1)) * Q
 	
@@ -1997,7 +2058,7 @@ def save_results(x):
 
 	with open(x, 'w') as output:
 	
-		output.write('viewspectrum.py version {}\n' .format(version))		
+		output.write('simulate_lte.py version {}\n' .format(version))		
 		output.write('saved: {}\n\n' .format(datetime.now().strftime("%m-%d-%y %H:%M:%S")))
 		
 		output.write('#### Active Simulation ####\n\n')
@@ -2015,15 +2076,16 @@ def save_results(x):
 		output.write('catalog_file:\t{}\n' .format(catalog_file))
 		output.write('thermal:\t{} K\n' .format(thermal))
 		output.write('GHz:\t{}\n' .format(GHz))
-		output.write('rms:\t{}\n\n' .format(rms))
+		output.write('rms:\t{}\n' .format(rms))
+		output.write('vibs:\t{}\n\n' .format(vibs))
 	
 		output.write('#### Stored Simulations ####\n\n')
 		
-		output.write('Molecule\tT(K)\tC\tdV\tvlsr\tCT\tcatalog_file\n')
+		output.write('Molecule\tT(K)\tC\tdV\tvlsr\tCT\tvibs\tcatalog_file\n')
 	
 		for molecule in sim:
 		
-			output.write('{}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\n' .format(sim[molecule].name,sim[molecule].T,sim[molecule].C,sim[molecule].dV,sim[molecule].vlsr,sim[molecule].CT,sim[molecule].catalog_file))
+			output.write('{}\t{}\t{:.2f}\t{:.2f}\t{:.2f}\t{}\t{}\t{}\n' .format(sim[molecule].name,sim[molecule].T,sim[molecule].C,sim[molecule].dV,sim[molecule].vlsr,sim[molecule].CT,sim[molecule].vibs,sim[molecule].catalog_file))
 			
 		output.write('\n#### Active Graph Status ####\n\n')
 		
@@ -2156,8 +2218,7 @@ def sum_stored():
 		#calculate the beam solid angle, and throw an error if it hasn't been set.
 
 		try:
-			omega = synth_beam[0]*synth_beam[1] #the conversion below already has the volume element built in
-			#omega = synth_beam[0]*synth_beam[1]*np.pi/(4*np.log(2))	
+			omega = synth_beam[0]*synth_beam[1]*np.pi/(4*np.log(2))	
 		except TypeError:
 			print('You need to set a beam size to use for this conversion with synth_beam = [bmaj,bmin]')
 			print('Cannot produce an accurate summed spectrum')
@@ -2212,7 +2273,7 @@ def restore(x):
 	This procedure attempts to correct for any backward compatability issues with old versions of the program.  Usually the restore will proceed without issue and will warn the user if there were issues it corrected.  The simplest way to update a restore file is to save it with the latest version of the program after a successful load.  Most of the time, the backwards compatability issues are caused simply by missing meta-data that have been added in later version of the program.  In this case, the default values are simply used.
 	'''
 
-	global frequency,logint,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,T,dV,C,vlsr,ll,ul,CT,gauss,first_run,thermal,sim,GHz,rms,res
+	global frequency,logint,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,T,dV,C,vlsr,ll,ul,CT,gauss,first_run,thermal,sim,GHz,rms,res,vibs
 	
 	#close the old graph
 	
@@ -2242,8 +2303,8 @@ def restore(x):
 	
 	#check if the file that was read it is actually a savefile for viewspectrum.py
 	
-	if restore_array[0].split()[0] != 'viewspectrum.py':
-		print('The file is not a viewspectrum.py save file, has been altered, or was created with an older version of the program.  In any case, I can\'t read it, sorry.')
+	if restore_array[0].split()[0] != 'simulate_lte.py':
+		print('The file is not a simulate_lte.py save file, has been altered, or was created with an older version of the program.  In any case, I can\'t read it, sorry.')
 		return	
 		
 	#let's grab the date and time, so we can print some nice information to the terminal
@@ -2288,13 +2349,13 @@ def restore(x):
 	#what is the rms level set at?
 	
 	try:
-		rms = float(active_array[13].split('\t')[1].strip('\n'))
+		rms = float(active_array[14].split('\t')[1].strip('\n'))
 	except IndexError:
 		print('The restore file does not have an rms value in it.  It was probably generated with a previous version of the program. The restore can proceed, but it is recommended that you re-save the restore file with the latest version of the program.')
 	
 	#are we simulating Gaussians?
 	
-	if active_array[9].split('\t')[1].strip('\n') == 'True':
+	if active_array[10].split('\t')[1].strip('\n') == 'True':
 		gauss = True
 	else:
 		gauss = False
@@ -2304,7 +2365,7 @@ def restore(x):
 		
 	#are observations read in in GHz?
 	
-	if active_array[12].split('\t')[1].strip('\n') == 'True':
+	if active_array[13].split('\t')[1].strip('\n') == 'True':
 		GHz = True
 	else:
 		GHz = False	
@@ -2330,7 +2391,7 @@ def restore(x):
 			ul.append(float(tmp_str[line]))
 	
 	
-	thermal = float(active_array[11].split('\t')[1].strip(' K\n'))
+	thermal = float(active_array[12].split('\t')[1].strip(' K\n'))
 	
 	try:
 		obs = active_array[1].split('\t')[1].strip('\n')
@@ -2349,17 +2410,36 @@ def restore(x):
 		dV = float(stored_array[i].split('\t')[3])
 		vlsr = float(stored_array[i].split('\t')[4])
 		CT = float(stored_array[i].split('\t')[5])
-		catalog_file = str(stored_array[i].split('\t')[6]).strip('\n').strip()
+		
+		if stored_array[i].split('\t')[6] == 'None':
+		
+			vibs = None
+			
+		else:
+		
+			tmp_str = stored_array[i].split('\t')[6]
+			
+			tmp_str = tmp_str.strip('[')
+			tmp_str = tmp_str.strip(']').split(',')
+		
+			vibs = []
+			
+			for x in tmp_str:
+			
+				vibs.append(float(x))
+				
+			
+		catalog_file = str(stored_array[i].split('\t')[7]).strip('\n').strip()
 		
 
 		first_run = True
-		load_mol(catalog_file)
+		load_mol(catalog_file,vib_states=vibs)
 
 # 		try:	
 # 			load_mol(catalog_file)
 # 		except FileNotFoundError:
 # 			continue
-			
+
 		store(name)
 		
 		close()
@@ -2382,11 +2462,29 @@ def restore(x):
 		dV = float(active_array[4].split('\t')[1].strip(' km/s\n'))
 		vlsr = float(active_array[5].split('\t')[1].strip(' km/s\n'))
 		CT = float(active_array[8].split('\t')[1].strip(' K\n'))
+		
+		if active_array[9].split('\t')[1] == 'None':
+		
+			vibs = None
+			
+		else:
+		
+			tmp_str = active_array[9].split('\t')[1]
+			
+			tmp_str = tmp_str.strip('[')
+			tmp_str = tmp_str.strip(']').split(',')
+		
+			vibs = []
+			
+			for x in tmp_str:
+			
+				vibs.append(float(x))
+		
 		current = active_array[0].split('\t')[1].strip('\n')
 		name = active_array[0].split('\t')[1]
 		
 		first_run = True
-		load_mol(catalog_file)
+		load_mol(catalog_file,vib_states=vibs)
 
 	#And finally, overplot anything that was on the plot previously
 	
@@ -2603,7 +2701,7 @@ def plot_residuals():
 
 #print_lines will print out the catalog info on lines that are above a certain threshold for a molecule.  The default just prints out the current lines above a standard 1 mK threshold.		
 
-def print_lines(mol='current',thresh=0.0001,rest=True):
+def print_lines(mol='current',thresh=float('-inf'),rest=True,mK=False):
 
 	global gauss
 	
@@ -2631,9 +2729,11 @@ def print_lines(mol='current',thresh=0.0001,rest=True):
 		
 			qn_length = qns_length	#if the length of the string is going to be longer than the label, we need to pad the label.
 	
-		print_array.append('Molecule: {}' .format(name))
-		print_array.append('Column Density: {:.2e} cm-2 \t Temperature: {} K \t Linewidth: {} km/s \t vlsr: {} km/s' .format(C,T,dV,vlsr))
-		print_array.append('Frequency \t Intensity (K) \t {{:<{}}} \t Eu (K) \t gJ \t log(Aij)' .format(qn_length).format('Quantum Numbers'))
+		#print_array.append('Molecule: {}' .format(name))
+		#print_array.append('Column Density: {:.2e} cm-2 \t Temperature: {} K \t Linewidth: {} km/s \t vlsr: {} km/s' .format(C,T,dV,vlsr))
+		#print_array.append('Frequency \t Intensity (K) \t {{:<{}}} \t Eu (K) \t gJ \t log(Aij) \t Sij' .format(qn_length).format('Quantum Numbers'))
+	
+		#6.8 - these are now generated down below on first run.
 	
 		#gotta re-read-in the molecule to get back the quantum numbers
 		
@@ -2705,130 +2805,80 @@ def print_lines(mol='current',thresh=0.0001,rest=True):
 					qn_string = '{:>2} {: >3} {: >3} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3} {: >3} {: >3}' .format(qn1[y][i],qn2[y][i],qn3[y][i],qn4[y][i],qn5[y][i],qn6[y][i],qn7[y][i],qn8[y][i],qn9[y][i],qn10[y][i],qn11[y][i],qn12[y][i])							
 	
 				gJ = 2*qn1[y][i] + 1
+				
+				qn_string.strip()
+			
+				if x == 0:
+				
+					qn_str_len = len(qn_string)
+					
+					space = ' '
+					
+					qn_str = 'Quantum Numbers'
+					
+					if qn_str_len > 15:
+					
+						qn_str += (qn_str_len - 15) * space
+						
+					total_length = len(qn_str)
+				
+					print_array.append('Molecule: {}' .format(name))
+					print_array.append('Column Density: {:.2e} cm-2\tTemperature: {} K\tLinewidth: {} km/s\tvlsr: {} km/s\n' .format(C,T,dV,vlsr))
+					
+					if mK == True:
+					
+						if planck == True:
+							
+							print_array.append('Frequency\tIntensity (mJy)\t{}\tEu (K)   \tgJ\tlog(Aij)\tSij' .format(qn_str))
+					
+						else:
+						
+							print_array.append('Frequency\tIntensity (mK)\t{}\tEu (K)   \tgJ\tlog(Aij)\tSij' .format(qn_str)) 
+											
+					elif planck == True:
+					
+						print_array.append('Frequency\tIntensity (Jy)\t{}\tEu (K)   \tgJ\tlog(Aij)\tSij' .format(qn_str))
+						
+					else:
+					
+						print_array.append('Frequency\tIntensity (K)\t{}\tEu (K)   \tgJ\tlog(Aij)\tSij' .format(qn_str))
+					
+						
 			
 				if rest==False:
 			
-					frequency_tmp_shift = frequency[y][i] - vlsr*frequency[y][i]/3E5				
+					frequency_tmp_shift = frequency[y][i] - vlsr*frequency[y][i]/3E5
+					
+					if len(qn_str) < 15:
+					
+						qn_str += (len(qn_str)-15)*' '				
 	
-					print_array.append('{:.4f} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper[y][i]/0.695,gJ,np.log10(aij[y][i])))
+					if mK == True:
+					
+						print_array.append('{:.4f}\t{:<13.3f}\t{}\t{:<9.3f}\t{}\t{:.2f}    \t{:.4f}' .format(frequency_tmp_shift,int_tmp[x]*1000,qn_string,eupper[y][i]/0.695,gJ,np.log10(aij[y][i]),sijmu[y][i]))
+						
+					else:
+					
+						print_array.append('{:.4f}\t{:<13.3f}\t{}\t{:<9.3f}\t{}\t{:.2f}    \t{:.4f}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper[y][i]/0.695,gJ,np.log10(aij[y][i]),sijmu[y][i]))
 				
 				else:
-			
-					print_array.append('{:.4f} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency[y][i],int_tmp[x],qn_string,eupper[y][i]/0.695,gJ,np.log10(aij[y][i])))
+
+					if len(qn_str) < 15:
+					
+						qn_str += (len(qn_str)-15)*' '			
+
+					
+					if mK == True:
+					
+						print_array.append('{:.4f}\t{:<13.3f}\t{}\t{:<9.3f}\t{}\t{:.2f}    \t{:.4f}' .format(frequency[y][i],int_tmp[x]*1000,qn_string,eupper[y][i]/0.695,gJ,np.log10(aij[y][i]),sijmu[y][i]))
+						
+					else:
+					
+						print_array.append('{:.4f}\t{:<13.3f}\t{}\t{:<9.3f}\t{}\t{:.2f}    \t{:.4f}' .format(frequency[y][i],int_tmp[x],qn_string,eupper[y][i]/0.695,gJ,np.log10(aij[y][i]),sijmu[y][i]))
 					
 				old_f = freq_tmp[x]	
 						
-	else:
-	
-		try:
-			catalog_file_tmp = sim[mol].catalog_file
-		except KeyError:
-			print('No molecule stored with that name.')
-			
-		C_tmp = sim[mol].C
-		T_tmp = sim[mol].T
-		dV_tmp = sim[mol].dV
-		vlsr_tmp = sim[mol].vlsr
-		frequency_tmp = sim[mol].frequency
-		intensity_tmp = sim[mol].intensity
-		eupper_tmp = sim[mol].eupper
-		aij_tmp = sim[mol].aij
-		
-		qns_tmp = sim[mol].qns
-		
-		qns_length = 4*(qns_tmp-2)*2 + 15 #length of the qn string
-		
-		if qns_length > 15:
-		
-			qn_length = qns_length	#if the length of the string is going to be longer than the label, we need to pad the label.
-			
-		print_array.append('Molecule: {}' .format(mol))
-		print_array.append('Column Density: {:.2e} cm-2 \t Temperature: {} K \t Linewidth: {} km/s \t vlsr: {} km/s' .format(C_tmp,T_tmp,dV_tmp,vlsr_tmp))
-		print_array.append('Frequency \t Intensity (K) \t {{:<{}}} \t Eu (K) \t gJ' .format(qn_length).format('Quantum Numbers'))
-		
-	
-		#gotta re-read-in the molecule to get back the quantum numbers
-		
-		raw_array = read_cat(catalog_file_tmp)
-
-		catalog = splice_array(raw_array)
-		
-		qn1 = np.asarray(catalog[8])
-		qn2 = np.asarray(catalog[9])
-		qn3 = np.asarray(catalog[10])
-		qn4 = np.asarray(catalog[11])
-		qn5 = np.asarray(catalog[12])
-		qn6 = np.asarray(catalog[13])
-		qn7 = np.asarray(catalog[14])
-		qn8 = np.asarray(catalog[15])
-		qn9 = np.asarray(catalog[16])
-		qn10 = np.asarray(catalog[17])
-		qn11 = np.asarray(catalog[18])
-		qn12 = np.asarray(catalog[19])
-		
-		#run the simulation to get the intensities
-	
-		freq_tmp,int_tmp = run_sim(frequency_tmp,intensity_tmp,T_tmp,dV_tmp,C_tmp)
-		
-		old_f = np.nan
-		
-		i = 0
-		
-		for x in range(len(freq_tmp)):
-		
-			if int_tmp[x] > thresh:
-		
-				y = np.where(frequency_tmp == freq_tmp[x])
-			
-				qn_string = ''
-				
-				#deal with the case where multiple transitions have the same frequency		
-				
-				if freq_tmp[x] == old_f:
-				
-					i += 1
-					
-				else:
-				
-					i = 0 				
-			
-				if qns_tmp == 1:
-			
-					qn_string = '{:>2} -> {:>2}' .format(qn1[y][i],qn7[y][i])
-				
-				if qns_tmp == 2:
-			
-					qn_string = '{:>2} {: >3} -> {:>2} {: >3}' .format(qn1[y][i],qn2[y][i],qn7[y][i],qn8[y][i])		
-				
-				if qns_tmp == 3:
-			
-					qn_string = '{:>2} {: >3} {: >3} -> {:>2} {: >3} {: >3}' .format(qn1[y][i],qn2[y][i],qn3[y][i],qn7[y][i],qn8[y][i],qn9[y][i])							
-
-				if qns_tmp == 4:
-			
-					qn_string = '{:>2} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3}' .format(qn1[y][i],qn2[y][i],qn3[y][i],qn4[y][i],qn7[y][i],qn8[y][i],qn9[y][i],qn10[y][i])	
-				
-				if qns_tmp == 5:
-			
-					qn_string = '{:>2} {: >3} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3} {: >3}' .format(qn1[y][i],qn2[y][i],qn3[y][i],qn4[y][i],qn5[y][i],qn7[y][i],qn8[y][i],qn9[y][i],qn10[y][i],qn11[y][i])			
-				
-				if qns_tmp == 6:
-			
-					qn_string = '{:>2} {: >3} {: >3} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3} {: >3} {: >3}' .format(qn1[y][i],qn2[y][i],qn3[y][i],qn4[y][i],qn5[y][i],qn6[y][i],qn7[y][i],qn8[y][i],qn9[y][i],qn10[y][i],qn11[y][i],qn12[y][i])							
-		
-				gJ = 2*qn1[y][i] + 1
-				
-				if rest==False:
-				
-					frequency_tmp_shift = frequency_tmp[y][i] - vlsr_tmp*frequency_tmp[y][i]/3E5
-			
-					print_array.append('{:.4f} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper_tmp[y][i]/0.695,gJ,np.log10(aij_tmp[y][i])))
-				
-				else:
-				
-					print_array.append('{:.4f} \t {:<13.3f} \t {} \t {:<9.3f} \t {} \t {:.2f}' .format(frequency_tmp[y][i],int_tmp[x],qn_string,eupper_tmp[y][i]/0.695,gJ,np.log10(aij_tmp[y][i])))
-					
-				old_f = freq_tmp[x]		
+	#printing lines from storage has been disabled
 			
 	for x in range(len(print_array)):
 	
@@ -3858,6 +3908,51 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 			
 	#Will need to run several different possible scenarios here
 	
+	if tbg_type == 'greybody':
+	
+		T = tbg_params[0]
+		beta = tbg_params[1]
+		tauref = tbg_params[2]
+		taufreq = tbg_params[3]
+		major = tbg_params[4]
+		minor = tbg_params[5]
+		
+		#get tbg in Jy first
+		
+		#assume the major and minor axes were given in arcseconds, and calculate the solid angle of the beam
+		
+		omega = np.radians(major/3600.)*np.radians(minor/3600.)*np.pi/(4*np.log(2))
+		
+		tau = np.zeros_like(frequencies)
+		
+		tau = np.float64(tau)
+		
+		tau = tauref * pow((frequencies*1e6/(taufreq*1e9)), beta)
+		
+		T_Jy_tmp = np.zeros_like(frequencies)
+		
+		T_Jy_tmp = omega * 1e23 * (1-np.exp(-tau)) *  2*h*pow(frequencies*1e6,3) / pow(cm,2) / np.expm1(h*frequencies*1e6/(k*T))
+		
+		#now to get it into Kelvin
+		
+		tmp_tbg = np.copy(T_Jy_tmp)
+		
+		with open('bunk.txt','w') as output:
+		
+			for x in range(len(frequencies)):
+			
+				output.write('{} {}\n' .format(frequencies[x],tmp_tbg[x]))
+		
+		omega = synth_beam[0]*synth_beam[1]
+
+		#do the conversion
+
+		tbg = (3.92E-8 * (frequencies*1E-3)**3 *omega/ (np.exp(0.048*frequencies*1E-3/tbg) - 1))
+
+		tbg[tbg < 2.7] = 2.7
+		
+		return tbg 					
+	
 	if tbg_type == 'poly':
 	
 		#need to reverse sort that list so that the ordering is correct, because it's specified by the user as : y = Ax^2 + Bx + C as [A,B,C], but the script below wants it in the order [C, B, A].
@@ -4106,7 +4201,7 @@ def reset_tbg():
 
 class Molecule(object):
 
-	def __init__(self,name,catalog_file,tag,gup,dof,error,qn1,qn2,qn3,qn4,qn5,qn6,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim,aij,sijmu):
+	def __init__(self,name,catalog_file,tag,gup,dof,error,qn1,qn2,qn3,qn4,qn5,qn6,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim,aij,sijmu,vibs):
 	
 		self.name = name
 		self.catalog_file = catalog_file
@@ -4141,6 +4236,7 @@ class Molecule(object):
 		self.int_sim = int_sim
 		self.aij = aij
 		self.sijmu = sijmu
+		self.vibs = vibs
 
 	
 #############################################################
