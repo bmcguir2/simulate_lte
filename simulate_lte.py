@@ -49,6 +49,7 @@
 # 6.7 - added greybody continuum option
 # 6.8 - update to print_lines() to show sijmu.
 # 6.9 - added ability to add vibrational corrections to partition function.
+# 6.10 - fixes bug when using multiple constant continuum values.  Introduces 'constant' as tbg_type for this.
 
 #############################################################
 #							Preamble						#
@@ -77,7 +78,7 @@ import peakutils
 import math
 #warnings.filterwarnings('error')
 
-version = 6.9
+version = 6.10
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -162,17 +163,21 @@ lines = {} #dictionary to hold matplotlib lines
 
 tbg = [] #to hold background temperatures
 
+vibs = None
+
 ############ Tbg Parameters ##############
 
 #tbg_params is to hold the actual parameters used to calculate Tbg.  
 
-	#If it is a constant, then it can be passed an integer.  tbg_type must be 'poly' and tbg_order must be an integer 0.  These are the defaults.  Other possibilities are described below.
+	#If it is a constant, then it can be passed an integer.  tbg_type must be 'constant' and tbg_order must be an integer 0.  These are the defaults.  Other possibilities are described below.
 
 tbg_params = 2.7
 
 #tbg_type can be the following:
 
-	#'poly' is a polynomial of order set by tbg_order = X, where X is the order and an integer.  If tbg_order = 0, tbg_params can be a float or a list with one value.  If tbg_order is greater than 0, then tbg_params must be a list of length = X+1.  So a first order polynomial needs two values [A,B] in the tbg_params: y = Ax + B.
+	#'constant' is a constant value.  If there are multiple ranges, then a value must be giving for each range.
+
+	#'poly' is a polynomial of order set by tbg_order = X, where X is the order and an integer.  Tbg_params must be a list of length = X+1.  So a first order polynomial needs two values [A,B] in the tbg_params: y = Ax + B.
 	
 	#'power' is a power law of the form Y = Ax^B + C.  tbg_params must be a list with three values [A,B,c]
 	
@@ -186,7 +191,7 @@ tbg_params = 2.7
 		#major = tbg_params[4] #major axis of beam in arcsec
 		#minor = tbg_params[5] #minor axis of beam in arcsec
 
-tbg_type = 'poly'
+tbg_type = 'constant'
 
 #tbg_range can contain a list of paired upper and lower limits, themselves a length 2 list, for the sets of parameters in tbg_params to be used within.  If ranges are defined, any bit of the simulation not in the defined range defaults to 2.7 K.  float('-inf') or float('inf') are valid range values.
 
@@ -875,6 +880,10 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 	qvib = calc_qvib(vibs,T)
 	
 	Q *= qvib
+	
+	if 'hydroxyacetone' in catalog_file.lower() and 'dihydroxyacetone' not in catalog_file.lower():
+	
+		Q *= 2
 	
 	return Q
 	
@@ -1731,8 +1740,6 @@ def store(x=None):
 	
 		x = '{}' .format(catalog_file.split('.')[0].strip('\n').split('/')[-1]) 
 	
-	print(vibs)
-	
 	sim[x] = Molecule(x,catalog_file,tag,gup,dof,error,qn1,qn2,qn3,qn4,qn5,qn6,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim,aij,sijmu,vibs)
 	
 	if auto_update == True:
@@ -1957,7 +1964,7 @@ def load_mol(x,format='spcat',vib_states=None):
 	
 	tmp_freq += (-vlsr)*tmp_freq/ckm
 	
-	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file,vibs)
+	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file,vibs=None)
 
 	sijmu = (exp(np.float64(-(elower/0.695)/CT)) - exp(np.float64(-(eupper/0.695)/CT)))**(-1) * ((10**logint)/frequency) * ((4.16231*10**(-5))**(-1)) * Q
 	
@@ -2072,12 +2079,13 @@ def save_results(x):
 		output.write('ll:\t{} MHz\n' .format(ll))
 		output.write('ul:\t{} MHz\n' .format(ul))
 		output.write('CT:\t{} K\n' .format(CT))
+		output.write('vibs:\t{}\n\n' .format(vibs))
 		output.write('gauss:\t{}\n' .format(gauss))
 		output.write('catalog_file:\t{}\n' .format(catalog_file))
 		output.write('thermal:\t{} K\n' .format(thermal))
 		output.write('GHz:\t{}\n' .format(GHz))
 		output.write('rms:\t{}\n' .format(rms))
-		output.write('vibs:\t{}\n\n' .format(vibs))
+		
 	
 		output.write('#### Stored Simulations ####\n\n')
 		
@@ -2174,7 +2182,7 @@ def sum_stored():
 		
 	for x in sim:
 	
-		Q = calc_q(sim[x].qns,sim[x].elower,sim[x].qn7,sim[x].qn8,sim[x].qn9,sim[x].qn10,sim[x].qn11,sim[x].qn12,sim[x].T,sim[x].catalog_file)
+		Q = calc_q(sim[x].qns,sim[x].elower,sim[x].qn7,sim[x].qn8,sim[x].qn9,sim[x].qn10,sim[x].qn11,sim[x].qn12,sim[x].T,sim[x].catalog_file,sim[x].vibs)
 	
 		Nl = sim[x].C * (2*sim[x].qn7 + 1) * np.exp(-sim[x].elower/(0.695 * sim[x].T)) / Q
 	
@@ -2276,9 +2284,6 @@ def restore(x):
 	global frequency,logint,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,T,dV,C,vlsr,ll,ul,CT,gauss,first_run,thermal,sim,GHz,rms,res,vibs
 	
 	#close the old graph
-	
-# 	make_plot()
-# 	close()
 	
 	#empty out the previously-stored simulations
 	
@@ -2421,6 +2426,8 @@ def restore(x):
 			
 			tmp_str = tmp_str.strip('[')
 			tmp_str = tmp_str.strip(']').split(',')
+			
+			tmp_str = [x.strip().strip('\n').strip(']') for x in tmp_str]
 		
 			vibs = []
 			
@@ -2456,7 +2463,7 @@ def restore(x):
 	try:
 		recall(name)
 	except KeyError:
-		catalog_file = active_array[10].split('\t')[1].strip('\n')
+		catalog_file = active_array[11].split('\t')[1].strip('\n')
 		T = float(active_array[2].split('\t')[1].strip(' K\n'))
 		C = float(active_array[3].split('\t')[1].strip('\n'))
 		dV = float(active_array[4].split('\t')[1].strip(' km/s\n'))
@@ -2473,6 +2480,8 @@ def restore(x):
 			
 			tmp_str = tmp_str.strip('[')
 			tmp_str = tmp_str.strip(']').split(',')
+			
+			tmp_str = [x.strip().strip('\n').strip(']') for x in tmp_str]
 		
 			vibs = []
 			
@@ -2998,7 +3007,7 @@ def jy_to_k(bmaj,bmin,freq):
 	
 	for x in range(len(int_obs)):
 
-		int_obs[x] = 1.224*10**6 * int_obs[x] / (freq**2 * bmaj * bmin)		
+		int_obs[x] = 1.224*10**6 * int_obs[x] / ((freq_obs[x]/1000)**2 * bmaj * bmin)		
 		
 	clear_line('obs')
 		
@@ -3026,7 +3035,7 @@ def k_to_jy(bmaj,bmin,freq,sim=False):
 	
 		for x in range(len(int_obs)):
 
-			int_obs[x] = int_obs[x] * (freq**2 * bmaj * bmin) / (1.224*10**6)	
+			int_obs[x] = int_obs[x] * ((freq_obs[x]/1000)**2 * bmaj * bmin) / (1.224*10**6)	
 		
 		clear_line('obs')
 		
@@ -3953,6 +3962,81 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 		
 		return tbg 					
 	
+	if tbg_type == 'constant':
+	
+		#if there's no range specified...
+	
+		if n_ranges == 0:
+
+			tmp_tbg = np.full_like(frequencies,tbg_params)
+			
+			tmp_tbg = np.float64(tmp_tbg)
+			
+			tbg = tmp_tbg
+	
+			return tbg		
+		
+		else:
+		
+			#before we can add to the tbg array, we need to find the indices we'll be wanting to work with for each range.  So.
+			
+			for i in range(n_ranges):
+			
+				#first, get the ll and ul for the range in question.
+			
+				ll = tbg_range[i][0]
+				ul = tbg_range[i][1]
+				
+				#next, let's get the indexes i_low and i_high this range covers in our frequencies.
+				
+				try:
+					i_low = np.where(frequencies > ll)[0][0]
+				except IndexError:
+				
+					#first, check and make sure this range is actually in the simulation.  If the ll is higher than the highest frequency in frequencies, just move on
+					
+					if frequencies[-1] < ll:
+						continue
+						
+					#otherwise, if the simulation starts after the lower limit, then we just take the first point in frequencies
+					
+					else:
+						i_low = 0
+						
+				try:
+					i_high = np.where(frequencies > ul)[0][0]
+				except IndexError:
+				
+					#If we can't find a point in frequencies that's above the upper limit, then the last point in the simulation is the upper limit index
+					i_high = len(frequencies)
+						
+				#now that we have the indices i_low and i_high we are going to want to apply our tbg to, we can do as above
+				
+				#first, lets just get the constants for this particular range
+					
+				value = tbg_params[i]
+				
+				if type(value) == float or type(value) == int:
+				
+					value = [value]
+				
+				#now we cycle through the orders again
+				
+				for x in range(len(value)):
+				
+					#create a temporary array to handle what is going to be added to tbg for this order
+					
+					tmp_tbg = np.full_like(frequencies,value)
+					
+					tmp_tbg = np.float64(tmp_tbg)
+					
+					tbg[i_low:i_high] += tmp_tbg[i_low:i_high]		
+					
+			tbg[tbg == 0] = 2.7
+			
+			return tbg			
+	
+	
 	if tbg_type == 'poly':
 	
 		#need to reverse sort that list so that the ordering is correct, because it's specified by the user as : y = Ax^2 + Bx + C as [A,B,C], but the script below wants it in the order [C, B, A].
@@ -4194,6 +4278,34 @@ def reset_tbg():
 	tbg_type = 'poly'
 	tbg_range = []
 	update()
+
+#load_mm1() loads the default MM1 pointing position extraction and parameters.
+
+def load_mm1():
+
+	global tbg_range,tbg_type,tbg_params,planck,synth_beam,T,dV,vlsr,C
+
+	read_obs('/Users/Brett/Dropbox/Observations/ALMA/NGC6334I/spectra/mm1/mm1_fullspec.spec')
+	
+	tbg_range = [[130000,132500],[143500,146000],[251000,252500],[266000,266600],[270400,271000],[279000,283000],[290000,295000],[302400,306100],[336000,340000],[348000,352000],[682000,690000],[698400,706000],[873500,881500],[890000,898000]]
+
+	tbg_type = 'constant'
+
+	tbg_params = [11.25,11.25,27.4,27.4,27.4,33.9,33.9,35.0,43.1,43.1,38.5,41.38,35.9,35.9]
+
+	planck = True
+
+	synth_beam = [0.26,0.26]
+
+	T = 135
+
+	dV = 3.2
+
+	vlsr = -7
+
+	C = 1E17
+
+	autoset_limits()
 
 #############################################################
 #							Classes for Storing Results		#
