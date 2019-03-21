@@ -50,6 +50,7 @@
 # 6.8 - update to print_lines() to show sijmu.
 # 6.9 - added ability to add vibrational corrections to partition function.
 # 6.10 - fixes bug when using multiple constant continuum values.  Introduces 'constant' as tbg_type for this.
+# 6.13 - adds ability to filter out windows from stacking that have lines in them already at the center.
 
 #############################################################
 #							Preamble						#
@@ -78,7 +79,7 @@ import peakutils
 import math
 #warnings.filterwarnings('error')
 
-version = 6.10
+version = 6.13
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -859,7 +860,7 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 			J = temp[i][0] #Extract a J value from the list
 			E = temp[i][qns] #Extract its corresponding energy
 			
-			if 'benzonitrile.cat' in catalog_file.lower() or 'bn_global.cat' in catalog_file.lower():
+			if 'benzonitrile.cat' in catalog_file.lower() or 'bn_global.cat' in catalog_file.lower() or 'benzonitrile' in catalog_file.lower():
 			
 				#Goes through and does the adjustments for the nuclear hyperfine splitting (it's being overcounted in the catalog, needs to be divide by 3), and the spin-statistic degeneracies.
 			
@@ -874,6 +875,10 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 			else:
 		
 				Q += (2*J+1)*exp(np.float64(-E/(kcm*T))) #Add it to Q
+		
+		if 'h2cco' in catalog_file.lower() or 'ketene' in catalog_file.lower():
+		
+			Q *= 2
 			
 		#result = [Q,ustates] #can enable this function to check the number of states used in the calculation, but note that this will break calls to Q further down that don't go after element 0.
 		
@@ -1228,11 +1233,35 @@ def run_sim(freq,intensity,T,dV,C):
 	
 	Nl = C * (2*qn7 + 1) * np.exp(-elower/(0.695 * T)) / Q
 	
+	nl_print = trim_array(Nl,frequency,ll,ul)
+	
+# 	print('Nl\n')
+# 	print(nl_print)
+# 	print('+++++++++++++++++++++\n')
+	
 	tau_numerator = np.asarray((ccm/(frequency * 10**6))**2 * aij * gup * Nl * (1 - np.exp(-(h * frequency * 10**6)/(k * T))),dtype=float)
 	
+	tau_numerator_print = trim_array(tau_numerator,frequency,ll,ul)
+	
+# 	print('tau_num\n')
+# 	print(tau_numerator_print)
+# 	print('+++++++++++++++++++++\n')
+	
 	tau_denominator = np.asarray(8 * np.pi * (dV * frequency * 10**6 / ckm) * (2*qn7 + 1),dtype=float)
+	
+	tau_denominator_print = trim_array(tau_denominator,frequency,ll,ul)
+	
+# 	print('tau_denom\n')
+# 	print(tau_denominator_print)
+# 	print('+++++++++++++++++++++\n')		
 
 	tau =tau_numerator/tau_denominator
+	
+	tau_print = trim_array(tau,frequency,ll,ul)
+	
+# 	print('tau\n')
+# 	print(tau_print)
+# 	print('+++++++++++++++++++++\n')
 	
 	int_temp = tau
 		
@@ -2007,7 +2036,11 @@ def load_mol(x,format='spcat',vib_states=None):
 
 	else:
 
-		lines['current'] = ax.plot(freq_sim,int_sim,color = 'red',label='current',drawstyle=draw_style,zorder=500)	
+		try:
+			lines['current'] = ax.plot(freq_sim,int_sim,color = 'red',label='current',drawstyle=draw_style,zorder=500)
+		except ValueError:
+			print('No lines exist in this catalog within the specified limits.')
+			return	
 
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
@@ -3541,7 +3574,7 @@ def find_nearest(array,value):
 	
 #velocity_stack does a velocity stacking analysis using the current ll and ul, and the current simulation, using lines that are at least 0.1 sigma or larger, with the brightest simulated line scaled to be 1 sigma.
 
-def velocity_stack(man_drops=[],plot_chunks=True):
+def velocity_stack(man_drops=[],plot_chunks=True,flag_lines=False,flag_int_thresh = 5, flag_vel_thresh = 4, print_flags = False):
 
 	drops = []
 
@@ -3668,6 +3701,8 @@ def velocity_stack(man_drops=[],plot_chunks=True):
 		
 		rms_chunks.append(rms)
 
+	rms_chunks = np.asarray(rms_chunks)
+
 	#how many figures will we have?
 	
 	n_figs = math.ceil(len(obs_chunks)/16)
@@ -3742,6 +3777,10 @@ def velocity_stack(man_drops=[],plot_chunks=True):
 		#display these, for checking purposes
 
 		#how many figures will we have?
+	
+	obs_chunks_vel_samp = np.asarray(obs_chunks_vel_samp)		
+			
+
 
 # 	n_figs = math.ceil(len(obs_chunks_vel_samp)/16)
 # 
@@ -3791,13 +3830,36 @@ def velocity_stack(man_drops=[],plot_chunks=True):
 	
 	weights /= max_int
 	
+	weights = np.asarray(weights)
+	
+	if flag_lines is True:
+	
+		delete_list = []
+	
+		for x in range(len(obs_chunks_vel_samp)):
+		
+			chan_l = np.where(obs_chunks_vel_samp[x][0] > -flag_vel_thresh*dV)[0]	
+			chan_u = np.where(obs_chunks_vel_samp[x][0] >  flag_vel_thresh*dV)[0]
+			
+			if any(obs_chunks_vel_samp[x][1] > flag_int_thresh*rms_chunks[x]):
+			
+				if print_flags is True:
+			
+					print('I detected and deleted a line at {} MHz from the stack.' .format(np.mean(obs_chunks[x][0])))
+				
+				delete_list.append(x)
+				
+		obs_chunks_vel_samp = np.delete(obs_chunks_vel_samp, delete_list,0)
+		rms_chunks = np.delete(rms_chunks, delete_list,0)		
+		weights = np.delete(weights, delete_list,0)	
+	
 	#now we do the average
 	
 	vel_avg = vel_ref
 	
 	int_avg = np.zeros_like(vel_ref)
 	
-	rms_chunks = np.asarray(rms_chunks)
+	
 	
 	for x in range(len(obs_chunks_vel_samp)):
 	
@@ -4291,7 +4353,7 @@ def load_mm1():
 
 	tbg_type = 'constant'
 
-	tbg_params = [11.25,11.25,27.4,27.4,27.4,33.9,33.9,35.0,43.1,43.1,38.5,41.38,35.9,35.9]
+	tbg_params = [11.25,11.25,27.4,27.4,27.4,26.94,28.16,35.0,31.28,31.28,38.5,41.38,35.9,35.9]
 
 	planck = True
 
