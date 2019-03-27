@@ -51,6 +51,7 @@
 # 6.9 - added ability to add vibrational corrections to partition function.
 # 6.10 - fixes bug when using multiple constant continuum values.  Introduces 'constant' as tbg_type for this.
 # 6.13 - adds ability to filter out windows from stacking that have lines in them already at the center.
+# 6.14 - more robust SNR values for stacked spectra
 
 #############################################################
 #							Preamble						#
@@ -79,7 +80,7 @@ import peakutils
 import math
 #warnings.filterwarnings('error')
 
-version = 6.13
+version = 6.14
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -3574,7 +3575,7 @@ def find_nearest(array,value):
 	
 #velocity_stack does a velocity stacking analysis using the current ll and ul, and the current simulation, using lines that are at least 0.1 sigma or larger, with the brightest simulated line scaled to be 1 sigma.
 
-def velocity_stack(man_drops=[],plot_chunks=True,flag_lines=False,flag_int_thresh = 5, flag_vel_thresh = 4, print_flags = False):
+def velocity_stack(man_drops=[],plot_chunks=True,flag_lines=False,flag_int_thresh = 5, flag_vel_thresh = 4, print_flags = False, write_good_transitions = False):
 
 	drops = []
 
@@ -3779,46 +3780,6 @@ def velocity_stack(man_drops=[],plot_chunks=True,flag_lines=False,flag_int_thres
 		#how many figures will we have?
 	
 	obs_chunks_vel_samp = np.asarray(obs_chunks_vel_samp)		
-			
-
-
-# 	n_figs = math.ceil(len(obs_chunks_vel_samp)/16)
-# 
-# 	n_chunks_left = len(obs_chunks_vel_samp)
-# 
-# 	for x in range(n_figs):
-# 
-# 		if plot_chunks == False:
-#    
-# 			break
-# 
-# 		chunks_fig, axes = plt.subplots(4,4)
-# 
-# 		n_chunks_left -= x*16
-#    
-# 			#how many rows will we need?
-# 
-# 		n_rows = math.ceil(n_chunks_left/4)
-#    
-# 		if n_rows > 4:
-#    
-# 			n_rows = 4
-# 	   
-# 		for y in range(n_rows):
-#    
-# 			for z in range(4):
-# 	   
-# 				chunk_number = x*16 + y*4 + z
-#    
-# 				try:
-#    
-# 					axes[y,z].plot(obs_chunks_vel_samp[chunk_number][0],obs_chunks_vel_samp[chunk_number][1])
-# 			   
-# 				except IndexError:
-# 		   
-# 					break
-# 		   
-# 				axes[y,z].annotate('[{}]' .format(chunk_number), xy=(0.1,0.8), xycoords='axes fraction')
 				
 	#Need to now generate a weighting array for the line heights
 	
@@ -3852,6 +3813,9 @@ def velocity_stack(man_drops=[],plot_chunks=True,flag_lines=False,flag_int_thres
 		obs_chunks_vel_samp = np.delete(obs_chunks_vel_samp, delete_list,0)
 		rms_chunks = np.delete(rms_chunks, delete_list,0)		
 		weights = np.delete(weights, delete_list,0)	
+		obs_chunks = np.delete(obs_chunks, delete_list,0)
+		
+		
 	
 	#now we do the average
 	
@@ -3867,7 +3831,9 @@ def velocity_stack(man_drops=[],plot_chunks=True,flag_lines=False,flag_int_thres
 		
 	int_avg /= np.sum(rms_chunks**2)
 	
-	final_rms = find_vel_peaks(vel_avg,int_avg,dV,width_tweak = 3)[1]
+	#final_rms = find_vel_peaks(vel_avg,int_avg,dV,width_tweak = 3)[1]
+	
+	final_rms = get_rms(int_avg)
 	
 	int_avg /= final_rms
 	
@@ -4368,6 +4334,30 @@ def load_mm1():
 	C = 1E17
 
 	autoset_limits()
+
+#get the rms of the spectrum, at least a good guess at it if it isn't line-confusion limited
+
+def get_rms(intensity):
+
+	dummy_ints = np.copy(intensity)
+	noise = np.copy(intensity)
+	dummy_mean = np.nanmean(dummy_ints)
+	dummy_std = np.nanstd(dummy_ints)
+
+	for chan in np.where(dummy_ints < (dummy_mean - dummy_std*4))[0]:
+		noise[chan-10:chan+10] = np.nan
+
+	for chan in np.where(dummy_ints > (dummy_mean + dummy_std*4))[0]:
+		noise[chan-10:chan+10] = np.nan
+
+	noise_mean = np.nanmean(noise)
+	noise_std = np.nanstd(np.real(noise))
+
+	dummy_sqrd = np.copy(noise)
+	dummy_sqrd = np.square(dummy_sqrd)
+	noise_rms = np.sqrt(np.nanmean(dummy_sqrd))
+
+	return	noise_rms
 
 #############################################################
 #							Classes for Storing Results		#
