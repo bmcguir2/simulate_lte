@@ -52,6 +52,7 @@
 # 6.10 - fixes bug when using multiple constant continuum values.  Introduces 'constant' as tbg_type for this.
 # 6.13 - adds ability to filter out windows from stacking that have lines in them already at the center.
 # 6.14 - more robust SNR values for stacked spectra
+# 6.15 - re-enabled eta for single-dish observations
 
 #############################################################
 #							Preamble						#
@@ -80,7 +81,7 @@ import peakutils
 import math
 #warnings.filterwarnings('error')
 
-version = 6.14
+version = 6.15
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -1072,7 +1073,7 @@ def sim_gaussian(int_sim,freq,linewidth):
 	J_T = (h*freq_gauss*10**6/k)*(np.exp(((h*freq_gauss*10**6)/(k*T))) -1)**-1
 	J_Tbg = (h*freq_gauss*10**6/k)*(np.exp(((h*freq_gauss*10**6)/(k*Tbg))) -1)**-1
 	
-	int_gauss_tau = (J_T - J_Tbg)*(1 - np.exp(-int_gauss))
+	int_gauss_tau = (J_T - J_Tbg)*(1 - np.exp(-int_gauss))/eta
 	
 	return(freq_gauss,int_gauss_tau)
 
@@ -1286,7 +1287,7 @@ def run_sim(freq,intensity,T,dV,C):
 		J_T = (h*freq_sim*10**6/k)*(np.exp(((h*freq_sim*10**6)/(k*T))) -1)**-1
 		J_Tbg = (h*freq_sim*10**6/k)*(np.exp(((h*freq_sim*10**6)/(k*Tbg))) -1)**-1
 		
-		int_sim = (J_T - J_Tbg)*(1 - np.exp(-int_temp))
+		int_sim = (J_T - J_Tbg)*(1 - np.exp(-int_temp))/eta
 		
 	if planck == True:
 	
