@@ -53,6 +53,8 @@
 # 6.13 - adds ability to filter out windows from stacking that have lines in them already at the center.
 # 6.14 - more robust SNR values for stacked spectra
 # 6.15 - re-enabled eta for single-dish observations
+# 6.16 - added flag for interferometric, allowing beam-dilution for that
+# 6.17 - more robust RMS finding in velocity stacking
 
 #############################################################
 #							Preamble						#
@@ -81,7 +83,7 @@ import peakutils
 import math
 #warnings.filterwarnings('error')
 
-version = 6.15
+version = 6.16
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -107,6 +109,8 @@ auto_update = False
 first_run = True
 
 GHz = False
+
+interferometer = False
 
 quietflag = False #turn on to suppress warnings about how long the simulation will take.
 
@@ -1150,39 +1154,76 @@ def write_spectrum(x,output_file):
 
 #apply_beam applies a beam dilution correction factor
 
-def apply_beam(frequency,intensity,source_size,dish_size):
+def apply_beam(frequency,intensity,source_size,dish_size,synth_beam,interferometer):
 
-	#create a wave to hold wavelengths, fill it to start w/ frequencies
+	if interferometer is False:
 
-	wavelength = np.copy(frequency)
+		#create a wave to hold wavelengths, fill it to start w/ frequencies
+
+		wavelength = np.copy(frequency)
 	
-	#Convert those frequencies to Hz
+		#Convert those frequencies to Hz
 	
-	wavelength *= 1.0E6
+		wavelength *= 1.0E6
 	
-	#Convert to meters
+		#Convert to meters
 	
-	wavelength = cm/wavelength
+		wavelength = cm/wavelength
 	
-	#create an array to hold beam sizes
+		#create an array to hold beam sizes
 	
-	beam_size = np.copy(wavelength)
+		beam_size = np.copy(wavelength)
 	
-	#fill it with beamsizes
+		#fill it with beamsizes
 	
-	beam_size *= 206265 * 1.22 / dish_size
+		beam_size *= 206265 * 1.22 / dish_size
 	
-	#create an array to hold beam dilution factors
+		#create an array to hold beam dilution factors
 	
-	dilution_factor = np.copy(beam_size)
+		dilution_factor = np.copy(beam_size)
 	
-	dilution_factor = source_size**2/(beam_size**2 + source_size**2)
+		dilution_factor = source_size**2/(beam_size**2 + source_size**2)
 	
-	intensity_diluted = np.copy(intensity)
+		intensity_diluted = np.copy(intensity)
 	
-	intensity_diluted *= dilution_factor
+		intensity_diluted *= dilution_factor
 	
-	return intensity_diluted
+		return intensity_diluted
+		
+	if interferometer is True:
+	
+		#create a wave to hold wavelengths, fill it to start w/ frequencies
+
+		wavelength = np.copy(frequency)
+	
+		#Convert those frequencies to Hz
+	
+		wavelength *= 1.0E6
+	
+		#Convert to meters
+	
+		wavelength = cm/wavelength
+	
+		#create an array to hold beam sizes
+	
+		beam_size = np.ones_like(wavelength)
+	
+		#fill it with beamsizes
+	
+		beam_size *= (synth_beam[0]+synth_beam[1])/2
+	
+		#create an array to hold beam dilution factors
+	
+		dilution_factor = np.copy(beam_size)
+	
+		dilution_factor = source_size**2/(beam_size**2 + source_size**2)
+	
+		intensity_diluted = np.copy(intensity)
+	
+		intensity_diluted *= dilution_factor
+	
+		return intensity_diluted
+		
 	
 #invert_beam applies a beam dilution correction factor in the other direction (used for tbg corrections - takes an observed tbg and returns what it actually should be un-diluted)
 
@@ -1271,7 +1312,7 @@ def run_sim(freq,intensity,T,dV,C):
 	
 	freq_tmp = trim_array(freq,frequency,ll,ul)
 	
-	int_temp = apply_beam(freq_tmp,int_temp,source_size,dish_size)
+	int_temp = apply_beam(freq_tmp,int_temp,source_size,dish_size,synth_beam,interferometer)
 	
 	if gauss == True:
 
@@ -2261,7 +2302,8 @@ def sum_stored():
 		#calculate the beam solid angle, and throw an error if it hasn't been set.
 
 		try:
-			omega = synth_beam[0]*synth_beam[1]*np.pi/(4*np.log(2))	
+			omega = synth_beam[0]*synth_beam[1] #conversion below already has omega in it
+			#omega = synth_beam[0]*synth_beam[1]*np.pi/(4*np.log(2))	
 		except TypeError:
 			print('You need to set a beam size to use for this conversion with synth_beam = [bmaj,bmin]')
 			print('Cannot produce an accurate summed spectrum')
@@ -3272,94 +3314,8 @@ def find_peaks(frequency,intensity,fwhm,sigma=3,width_tweak=1.0):
 		
 		line_chan = int(fwhm_chan * 5 * width_tweak)
 				
-		#So this is going to be a multistep iterative process to find peaks, remove them temporarily, and then find the RMS, and repeat until the RMS isn't changing.  Then we find all the peaks above the threshold sigma level.
-		
-		intensity_tmp = np.asarray(intensity)
-		intensity_mask = np.asarray(intensity)
-		frequency_mask = np.asarray(frequency)
-		
-		converged = False
-		
-		rms = np.inf
-		
-		while converged == False:
-		
-			rms = np.sqrt(np.nanmean(intensity_tmp**2))
-					
-			peak_indices_tmp = peakutils.indexes(intensity_tmp,thres=0.99)
+		rms = get_rms(intensity)
 			
-			if len(peak_indices_tmp) == 0:
-			
-				converged = True 
-				
-			if len(peak_indices_tmp) < 0.75*len(intensity):
-			
-				converged = True
-				
-			for x in range(len(peak_indices_tmp)):
-			
-				if intensity_tmp[peak_indices_tmp[x]] < 2*rms:
-				
-					converged = True
-			
-			#now we remove the channels that have those lines in them
-			
-			#first, figure out the channels to drop
-			
-			drops = []
-			
-			for x in range(len(peak_indices_tmp)):
-			
-					ll = peak_indices_tmp[x]-line_chan
-					
-					if ll < 0:
-					
-						ll = 0
-						
-					ul = peak_indices_tmp[x]+line_chan+1
-					
-					if ul > len(intensity_tmp):
-						
-						ul = len(intensity_tmp)
-			
-					for z in range(ll,ul):
-					
-						drops.append(z)
-						
-			#use those to make a mask			
-			
-			mask = np.ones(len(intensity_tmp), dtype=bool)
-			
-			mask[drops] = False			
-			
-			#mask out those peaks
-			
-			intensity_tmp = intensity_tmp[mask]
-			
-			intensity_mask = intensity_mask[mask]
-			
-			frequency_mask = frequency_mask[mask]
-			
-			new_rms = np.sqrt(np.nanmean(intensity_tmp**2))
-			
-			#if it is the first run, set the rms to the new rms and continue
-						
-			if rms == np.inf:
-			
-				rms = new_rms
-			
-			#otherwise if there are no lines left above x sigma, stop
-			
-			elif np.amax(intensity_tmp) < new_rms*5:
-			
-				rms = new_rms
-			
-				converged = True
-				
-			else:
-			
-				rms = new_rms
-				
 		#now that we know the actual rms, we can find all the peaks above the threshold, and we have to calculate a real threshold, as it is a normalized intensity (percentage).  
 		
 		intensity_tmp = np.asarray(intensity)
@@ -3696,10 +3652,9 @@ def velocity_stack(man_drops=[],plot_chunks=True,flag_lines=False,flag_int_thres
 	
 	for x in range(len(obs_chunks)):
 	
-		freq_chunk = obs_chunks[x][0]
 		int_chunk = obs_chunks[x][1]
 	
-		rms = find_peaks(freq_chunk,int_chunk,dV)[1]
+		rms = get_rms(int_chunk)
 		
 		rms_chunks.append(rms)
 
@@ -4308,6 +4263,34 @@ def reset_tbg():
 	tbg_range = []
 	update()
 
+#get the rms of the spectrum, at least a good guess at it if it isn't line-confusion limited
+
+def get_rms(intensity):
+
+	dummy_ints = np.copy(intensity)
+	noise = np.copy(intensity)
+	dummy_mean = np.nanmean(dummy_ints)
+	dummy_std = np.nanstd(dummy_ints)
+
+	for chan in np.where(dummy_ints < (dummy_mean - dummy_std*4))[0]:
+		noise[chan-10:chan+10] = np.nan
+
+	for chan in np.where(dummy_ints > (dummy_mean + dummy_std*4))[0]:
+		noise[chan-10:chan+10] = np.nan
+
+	noise_mean = np.nanmean(noise)
+	noise_std = np.nanstd(np.real(noise))
+
+	dummy_sqrd = np.copy(noise)
+	dummy_sqrd = np.square(dummy_sqrd)
+	noise_rms = np.sqrt(np.nanmean(dummy_sqrd))
+
+	return	noise_rms
+
+#############################################################
+#				Custom Loading for Common Sources			#
+#############################################################	
+
 #load_mm1() loads the default MM1 pointing position extraction and parameters.
 
 def load_mm1():
@@ -4335,30 +4318,27 @@ def load_mm1():
 	C = 1E17
 
 	autoset_limits()
+	
 
-#get the rms of the spectrum, at least a good guess at it if it isn't line-confusion limited
+#load_tmc1() loads the default MM1 pointing position extraction and parameters.
 
-def get_rms(intensity):
+def load_tmc1():
 
-	dummy_ints = np.copy(intensity)
-	noise = np.copy(intensity)
-	dummy_mean = np.nanmean(dummy_ints)
-	dummy_std = np.nanstd(dummy_ints)
+	global T,dV,vlsr
 
-	for chan in np.where(dummy_ints < (dummy_mean - dummy_std*4))[0]:
-		noise[chan-10:chan+10] = np.nan
+	read_obs('/Users/Brett/Dropbox/TMC1/tmc_all_gbt_samp.txt')
+	
+	T = 8
 
-	for chan in np.where(dummy_ints > (dummy_mean + dummy_std*4))[0]:
-		noise[chan-10:chan+10] = np.nan
+	dV = 0.3
 
-	noise_mean = np.nanmean(noise)
-	noise_std = np.nanstd(np.real(noise))
+	vlsr = 5.82
+	
+	source_size = 30
 
-	dummy_sqrd = np.copy(noise)
-	dummy_sqrd = np.square(dummy_sqrd)
-	noise_rms = np.sqrt(np.nanmean(dummy_sqrd))
+	autoset_limits()
+	
 
-	return	noise_rms
 
 #############################################################
 #							Classes for Storing Results		#
