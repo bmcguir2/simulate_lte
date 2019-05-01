@@ -55,6 +55,7 @@
 # 6.15 - re-enabled eta for single-dish observations
 # 6.16 - added flag for interferometric, allowing beam-dilution for that
 # 6.17 - more robust RMS finding in velocity stacking
+# 6.18 - edge of band detection to velocity stacking
 
 #############################################################
 #							Preamble						#
@@ -81,9 +82,10 @@ from datetime import datetime
 from scipy.optimize import curve_fit
 import peakutils
 import math
+import matplotlib.gridspec as gridspec
 #warnings.filterwarnings('error')
 
-version = 6.16
+version = 6.18
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -289,7 +291,7 @@ def fix_pm(qnarray):
 	
 #fix_qn fixes quantum number issues
 
-def fix_qn(qnarray,line,old_qn):
+def fix_qn(old_qn):
 
 	'''
 	fixes quantum number issues arising from the use of alphabet characters to represent numbers in spcat
@@ -505,7 +507,9 @@ def fix_qn(qnarray,line,old_qn):
 		
 		new_qn = 350 + int(old_qn[1])																																									
 				
-	qnarray[line] = int(new_qn)			
+	#qnarray[line] = int(new_qn)
+	
+	return int(new_qn)			
 	
 # splices the catalog file appropriately, then populates a numpy array with the data
 
@@ -546,7 +550,7 @@ def splice_array(x):
 		try:
 			gup[line] = int(str(x[line][41:44]).strip()) if str(x[line][41:44]).strip() else ''
 		except ValueError:
-			fix_qn(gup,line,str(x[line][41:44]))
+			gup[line] = fix_qn(str(x[line][41:44]))
 		tag[line] = int(str(x[line][44:51]).strip())
 		qnformat[line] = int(str(x[line][51:55]).strip())
 
@@ -562,7 +566,8 @@ def splice_array(x):
 		qn10[line] = str(x[line][73:75]).strip()
 		qn11[line] = str(x[line][75:77]).strip()
 		qn12[line] = str(x[line][77:]).strip()
-		
+
+
 	if '+' in qn1 or '-' in qn1:
 	
 		qn1 = fix_pm(qn1)
@@ -616,84 +621,84 @@ def splice_array(x):
 		try:
 			qn1[line] = int(qn1[line])
 		except ValueError:
-			fix_qn(qn1,line,qn1[line])
+			qn1[line] = fix_qn(qn1[line])
 			
 	for line in range(len(qn2)):
 	
 		try:
 			qn2[line] = int(qn2[line])
 		except ValueError:
-			fix_qn(qn2,line,qn2[line])
+			qn2[line] = fix_qn(qn2[line])
 			
 	for line in range(len(qn3)):
 	
 		try:
 			qn3[line] = int(qn3[line])
 		except ValueError:
-			fix_qn(qn3,line,qn3[line])						
+			qn3[line] = fix_qn(qn3[line])						
 			
 	for line in range(len(qn4)):
 	
 		try:
 			qn4[line] = int(qn4[line])
 		except ValueError:
-			fix_qn(qn4,line,qn4[line])
+			qn4[line] = fix_qn(qn4[line])
 
 	for line in range(len(qn5)):
 	
 		try:
 			qn5[line] = int(qn5[line])
 		except ValueError:
-			fix_qn(qn5,line,qn5[line])
+			qn5[line] = fix_qn(qn5[line])
 			
 	for line in range(len(qn6)):
 	
 		try:
 			qn6[line] = int(qn6[line])
 		except ValueError:
-			fix_qn(qn6,line,qn6[line])
+			qn6[line] = fix_qn(qn6[line])
 			
 	for line in range(len(qn7)):
 	
 		try:
 			qn7[line] = int(qn7[line])
 		except ValueError:
-			fix_qn(qn7,line,qn7[line])
+			qn7[line] = fix_qn(qn7[line])
 			
 	for line in range(len(qn8)):
 	
 		try:
 			qn8[line] = int(qn8[line])
 		except ValueError:
-			fix_qn(qn8,line,qn8[line])
+			qn8[line] = fix_qn(qn8[line])
 			
 	for line in range(len(qn9)):
 	
 		try:
 			qn9[line] = int(qn9[line])
 		except ValueError:
-			fix_qn(qn9,line,qn9[line])
+			qn9[line] = fix_qn(qn9[line])
 						
 	for line in range(len(qn10)):
 	
 		try:
 			qn10[line] = int(qn10[line])
 		except ValueError:
-			fix_qn(qn10,line,qn10[line])
+			qn10[line] = fix_qn(qn10[line])
 				
 	for line in range(len(qn11)):
 	
 		try:
 			qn11[line] = int(qn11[line])
 		except ValueError:
-			fix_qn(qn11,line,qn11[line])
+			qn11[line] = fix_qn(qn11[line])
 			
 	for line in range(len(qn12)):
 	
 		try:
 			qn12[line] = int(qn12[line])
 		except ValueError:
-			fix_qn(qn12,line,qn12[line])	
+			qn12[line] = fix_qn(qn12[line])	
 																							
 	return frequency,error,logint,dof,elower,gup,tag,qnformat,qn1,qn2,qn3,qn4,qn5,qn6,qn7,qn8,qn9,qn10,qn11,qn12
 	
@@ -1224,7 +1229,6 @@ def apply_beam(frequency,intensity,source_size,dish_size,synth_beam,interferomet
 	
 		return intensity_diluted
 		
-	
 #invert_beam applies a beam dilution correction factor in the other direction (used for tbg corrections - takes an observed tbg and returns what it actually should be un-diluted)
 
 def invert_beam(frequency,intensity,source_size,dish_size):
@@ -3526,18 +3530,27 @@ def plot_peaks(frequency,intensity,peak_indices,rms,freq_mask=None,int_mask=None
 
 def find_nearest(array,value):		
 
-	idx = (np.abs(array-value)).argmin()
+	#idx = (np.abs(array-value)).argmin()
 	
-	return idx
+	idx = np.searchsorted(array, value, side="left")
+	
+	if idx > 0 and (idx == len(array) or math.fabs(value - array[idx-1]) < math.fabs(value - array[idx])):
+	
+		return idx-1
+		
+	else:
+	
+		return idx
 	
 #velocity_stack does a velocity stacking analysis using the current ll and ul, and the current simulation, using lines that are at least 0.1 sigma or larger, with the brightest simulated line scaled to be 1 sigma.
 
-def velocity_stack(man_drops=[],plot_chunks=True,flag_lines=False,flag_int_thresh = 5, flag_vel_thresh = 4, print_flags = False, write_good_transitions = False):
+def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,plot_chunks=False):
 
-	drops = []
+	freq_local = np.copy(freq_obs)
+	int_local = np.copy(int_obs)
 
 	#find the simulation indices where the peaks are
-
+	
 	peak_indices = find_sim_peaks(freq_sim,int_sim,dV)
 	
 	#find the frequencies and intensities corresponding to those peaks
@@ -3545,277 +3558,343 @@ def velocity_stack(man_drops=[],plot_chunks=True,flag_lines=False,flag_int_thres
 	peak_freqs = freq_sim[peak_indices]
 	peak_ints = int_sim[peak_indices]
 	
-	#go find all the chunks in obs and extract them
+	#create a dictionary to hold obs chunks
 	
-	obs_chunks = []
+	obs_chunks = {}
 	
 	for x in range(len(peak_freqs)):
 	
-		#get the peak frequency
+		#get some temporary variables to hold the center frequency and peak intensity
+		
+		cfreq = peak_freqs[x]
+		peak_int = peak_ints[x]
+						
+		#calculate the lower and upper frequencies corresponding to vel_width FWHM away from the center frequency.
+		
+		#first we find out how far up and down we need to span in frequency space
+		
+		freq_width = vel_width*dV*cfreq/ckm
+		
+		#get the lower frequency we need
+		
+		l_freq = cfreq - freq_width
+		
+		#get the upper frequency we need
+		
+		u_freq = cfreq + freq_width
+		
+		#find the indexes in the observation closest to those frequencies
+		
+		l_idx = find_nearest(freq_local,l_freq)
+		u_idx = find_nearest(freq_local,u_freq)
+		
+		#create and store an ObsChunk
+		
+		obs_chunks[x] = ObsChunk(freq_local[l_idx:u_idx],int_local[l_idx:u_idx],cfreq,peak_int,x)
+		
+	#for iterating convenience, we make an obs_list
 	
-		freq = peak_freqs[x]
+	obs_list = []
+	
+	for obs in obs_chunks:
+	
+		obs_list.append(obs_chunks[obs])	
 		
-		#find the index in the observation closest to that frequency
+	#now we do some stupid checking
 		
-		idx = find_nearest(freq_obs,freq)
+	for obs in obs_list:
+		
+		#if the flag is already tripped, just move on.  Below, as soon as a flag is tripped we move on.
+		
+		if obs.flag is True:
+		
+			continue
+			
+		#we'll check to see if there is any data within 0.5*dV of the line.  If not, then we're going to flag it.		
+		
+		#create an array that is a copy of the frequencies in the chunk
+		
+		diffs = np.copy(obs.frequency)
+		
+		#subtract the line frequency from all of those
+		
+		diffs -= obs.cfreq
+		
+		#get the absolute value
+		
+		diffs = abs(diffs)
+		
+		#then if the minimum value of that array isn't less than 0.5*dV, we flag it
+		
+		if np.amin(diffs) > 0.5*dV:
+	
+			obs.flag = True
+			
+			continue
+			
+		#make sure the len of the array isn't something dumb, like 0
+		
+		if len(obs.frequency) == 0:
+	
+			obs.flag = True
+			
+			continue
+			
+		#drop anything corresponding to the drop list
+		
+		if obs.tag in drops:
+		
+			obs.flag = True
+			
+			continue
+			
+		#if we're flagging windows that have other lines in them, do that.
+		
+		if flag_lines is True:
+		
+			if any(obs.intensity > flag_int_thresh*obs.rms):
+			
+				obs.flag = True
 				
-		#calculate the resolution of the data there
-		
-		try:
-			chan_MHz = abs((freq_obs[idx] - freq_obs[idx+10])/10)
-		except IndexError:
-			obs_chunks.append([[],[]])
-			continue
-		
-		#convert that to km/s
-		
-		chan_kms = chan_MHz*ckm/freq
-		
-		#calculate how many channels to go 40 FHWM away
-		
-		nchan = int(40*dV/chan_kms)
-		
-		l_idx = idx - nchan
-		u_idx = idx + nchan
-		
-		#slice chunks out of freq_obs and int_obs and place them into obs_chunks (as numpy arrays)
-		
-		obs_chunks.append([np.asarray(freq_obs[l_idx:u_idx]),np.asarray(int_obs[l_idx:u_idx])])
-		
-	#remove anything where we didn't have data.  Hard coded to need to be within 3 MHz
-	
-	for x in range(len(obs_chunks)):
-		
-		if len(obs_chunks[x][0]) == 0:
-		
-			drops.append(x)	
-			
-			continue
-			
-		mid_point = math.ceil(len(obs_chunks[x][0])/2)	
-			
-		if abs(obs_chunks[x][0][mid_point] - peak_freqs[x]) >  3:
-		
-			drops.append(x)
-			
-			continue
-			
-		total_span = obs_chunks[x][0][-1] - obs_chunks[x][0][0]
-		
-		freq = peak_freqs[x]
-		
-		dV_MHz = dV*freq/ckm
-		
-		expected_span = 80*dV_MHz	
-			
-		if total_span > 1.2*expected_span:
-		
-			drops.append(x)
-			
-			continue
-		
-		
-			
-	
-	if len(man_drops) != 0:
-	
-		for x in range(len(man_drops)):
-		
-			drops.append(man_drops[x])	
-			
-		
-	#ok, now drop anything that is in the drop array
-	
-	if len(drops) != 0:
-	
-		#sort the array in descending order, so that we remove items from the correct places
-	
-		drops = list(set(drops))
-	
-		drops.sort(reverse=True)
-		
-		for x in range(len(drops)):
-		
-			del obs_chunks[drops[x]]
-			peak_freqs = np.delete(peak_freqs, drops[x])
-			peak_ints = np.delete(peak_ints, drops[x])		
-			
-	if len(obs_chunks) == 0:
-	
-		print('There are no lines in the data to be averaged.  Sorry.')
-		
-		return		
-
-	#now we go measure the rms of each of the obs chunks
-	
-	rms_chunks = []
-	
-	for x in range(len(obs_chunks)):
-	
-		int_chunk = obs_chunks[x][1]
-	
-		rms = get_rms(int_chunk)
-		
-		rms_chunks.append(rms)
-
-	rms_chunks = np.asarray(rms_chunks)
-
-	#how many figures will we have?
-	
-	n_figs = math.ceil(len(obs_chunks)/16)
-	
-	n_chunks_left = len(obs_chunks)
-	
-	for x in range(n_figs):
-	
-		if plot_chunks == False:
-		
-			break
-	
-		chunks_fig, axes = plt.subplots(4,4)
-	
-		n_chunks_left -= x*16
-		
-		#how many rows will we need?
-
-		n_rows = math.ceil(n_chunks_left/4)
-		
-		if n_rows > 4:
-		
-			n_rows = 4
-			
-		for y in range(n_rows):
-		
-			for z in range(4):
-			
-				chunk_number = x*16 + y*4 + z
-		
-				try:
-					axes[y,z].plot(obs_chunks[chunk_number][0],obs_chunks[chunk_number][1])
-				except IndexError:
-					break
-				
-				axes[y,z].annotate('[{}]' .format(chunk_number), xy=(0.1,0.8), xycoords='axes fraction')
-				minorLocator = AutoMinorLocator(5)
-
-				plt.locator_params(nbins=4) #Use only 4 actual numbers on the x-axis
-				axes[y,z].xaxis.set_minor_locator(minorLocator) #Let the program calculate some minor ticks from that
-
-				axes[y,z].get_xaxis().get_major_formatter().set_scientific(False) #Don't let the x-axis go into scientific notation
-				axes[y,z].get_xaxis().get_major_formatter().set_useOffset(False)
-			
-	#now need to resample so everything is on the same x-axis (velocity).  So, first, make velocity arrays.
-	
-	obs_chunks_vel = []
-	
-	for x in range(len(obs_chunks)):
-	
-		vel = np.asarray(obs_chunks[x][0])
-		
-		vel = (obs_chunks[x][0] - peak_freqs[x])*ckm/peak_freqs[x]
-		
-		obs_chunks_vel.append([vel,obs_chunks[x][1]])
-		
-	#now for the hard part, resampling these to all be on the same velocity 
-	
-	obs_chunks_vel_samp = []
-	
-	vel_ref = np.asarray(obs_chunks_vel[-1][0])
-	
-	for x in range(len(obs_chunks_vel)):
-	
-		vel_tmp = np.asarray(obs_chunks_vel[x][0])
-		int_tmp = np.asarray(obs_chunks_vel[x][1])
-		
-		int_interp = np.interp(vel_ref,vel_tmp,int_tmp)
-		
-		obs_chunks_vel_samp.append([vel_ref,int_interp])
-		
-		#display these, for checking purposes
-
-		#how many figures will we have?
-	
-	obs_chunks_vel_samp = np.asarray(obs_chunks_vel_samp)		
-				
-	#Need to now generate a weighting array for the line heights
-	
-	weights = np.asarray(peak_ints)
-		
-	#scale the weights array so that the largest value is 1
-	
-	max_int = np.amax(weights)
-	
-	weights /= max_int
-	
-	weights = np.asarray(weights)
-	
-	if flag_lines is True:
-	
-		delete_list = []
-	
-		for x in range(len(obs_chunks_vel_samp)):
-		
-			chan_l = np.where(obs_chunks_vel_samp[x][0] > -flag_vel_thresh*dV)[0]	
-			chan_u = np.where(obs_chunks_vel_samp[x][0] >  flag_vel_thresh*dV)[0]
-			
-			if any(obs_chunks_vel_samp[x][1] > flag_int_thresh*rms_chunks[x]):
-			
 				if print_flags is True:
-			
-					print('I detected and deleted a line at {} MHz from the stack.' .format(np.mean(obs_chunks[x][0])))
 				
-				delete_list.append(x)
-				
-		obs_chunks_vel_samp = np.delete(obs_chunks_vel_samp, delete_list,0)
-		rms_chunks = np.delete(rms_chunks, delete_list,0)		
-		weights = np.delete(weights, delete_list,0)	
-		obs_chunks = np.delete(obs_chunks, delete_list,0)
-		
-		
-	
-	#now we do the average
-	
-	vel_avg = vel_ref
-	
-	int_avg = np.zeros_like(vel_ref)
-	
-	
-	
-	for x in range(len(obs_chunks_vel_samp)):
-	
-		int_avg += obs_chunks_vel_samp[x][1]*weights[x]/rms_chunks[x]**2
-		
-	int_avg /= np.sum(rms_chunks**2)
-	
-	#final_rms = find_vel_peaks(vel_avg,int_avg,dV,width_tweak = 3)[1]
-	
-	final_rms = get_rms(int_avg)
-	
-	int_avg /= final_rms
-	
-	plt.ion()	
+					print('I detected and deleted a line at {} MHz from the stack.' .format(obs.cfreq))
+					
+				continue	
 
+	#now we have to figure out the weights for the arrays.  We start by finding the maximum line height, and scaling all of them so that the largest value is 1, excepting anything we've flagged.
+	
+	peaks = []
+	
+	for obs in obs_list:
+	
+		if obs.flag is False:
+		
+			peaks.append(obs.weight)
+		
+	max_int = max(peak_ints)
+		
+	#now we divide all our obs chunks by that, and then weight them down by their rms^2
+		
+	for obs in obs_list:
+	
+		if obs.flag is False:
+	
+			obs.weight = obs.peak_int/max_int
+			obs.weight /= obs.rms**2	
+			obs.int_weighted = obs.intensity * obs.weight
+		
+	#ok, now we need to generate a velocity array to interpolate everything onto, using the specified number of FWHMs, dV, and the desired resolution.
+	
+	#calculate the velocity bounds
+	
+	l_vel = -vel_width*dV
+	u_vel = vel_width*dV
+	
+	#generate the array
+	
+	velocity_avg = np.arange(l_vel,u_vel,v_res)
+	
+	#go through all the chunks and resample them, setting anything that is outside the range we asked for to be nans.
+		
+	for obs in obs_list:
+	
+		if obs.flag is False:
+	
+			obs.int_samp = np.interp(velocity_avg,obs.velocity,obs.int_weighted,left=np.nan,right=np.nan)
+
+	#ok, now we loop through all the chunks and add them to a list, then convert to an numpy array.  We have to do the same thing w/ RMS values to allow for proper division.
+					
+	interped_ints = []
+	interped_rms = []
+	
+	i = 0
+	
+	for obs in obs_list:
+	
+		if obs.flag is False:
+		
+			i+=1
+		
+			interped_ints.append(obs.int_samp)
+			interped_rms.append(obs.rms)
+			
+	interped_ints = np.asarray(interped_ints)
+	interped_rms = np.asarray(interped_rms)
+	
+	#we're going to now need a point by point rms array, so that when we average up and ignore nans, we don't divide by extra values.
+	
+	rms_array = []
+	
+	for x in range(len(velocity_avg)):	
+	
+		rms_sum = 0
+		
+		for y in range(len(interped_rms)):
+		
+			if np.isnan(interped_ints[y][x]):
+			
+				continue
+				
+			else:
+			
+				rms_sum += interped_rms[y]**2	
+				
+		rms_array.append(rms_sum)
+		
+	rms_array = np.copy(rms_array)
+
+	#now we add up the interped intensities, then divide that by the rms_array
+	
+	int_avg = np.nansum(interped_ints,axis=0)/rms_array
+	
+	#finally, we get the final rms, and divide out to get to snr
+	
+	int_avg /= get_rms(int_avg)
+
+	#Plotting!!!!
+
+	plt.ion()
+	
+	#Plot the chunks
+	
+	if plot_chunks is True:
+	
+		#We do 16 panels per figure, so let's get the number of figures we'll have
+		
+		n_figs = math.ceil(len(obs_chunks)/16)
+		
+		#loop through and make the figures one at a time.  The stack will be figure 0.
+		
+		for x in range(0,n_figs+0):
+		
+			#make a figure
+		
+			plt.figure(x+1)			
+			
+			#now we loop over the appropriate range of chunks
+			
+			chunk_range = np.arange(0,16) + x*16
+			
+			#Generate a grid specification for a 4x4 plot
+			
+			gs = gridspec.GridSpec(4,4)
+			
+			#Now, we add subplots at the [row,column] we want in that grid
+			
+			ax1 = plt.subplot(gs[0,0])
+			ax2 = plt.subplot(gs[0,1])
+			ax3 = plt.subplot(gs[0,2])
+			ax4 = plt.subplot(gs[0,3])
+			ax5 = plt.subplot(gs[1,0])
+			ax6 = plt.subplot(gs[1,1])
+			ax7 = plt.subplot(gs[1,2])
+			ax8 = plt.subplot(gs[1,3])
+			ax9 = plt.subplot(gs[2,0])
+			ax10 = plt.subplot(gs[2,1])
+			ax11 = plt.subplot(gs[2,2])
+			ax12 = plt.subplot(gs[2,3])
+			ax13 = plt.subplot(gs[3,0])
+			ax14 = plt.subplot(gs[3,1])
+			ax15 = plt.subplot(gs[3,2])
+			ax16 = plt.subplot(gs[3,3])
+			
+			#make a list so we can iterate over these
+			
+			axes = [ax1,ax2,ax3,ax4,ax5,ax6,ax7,ax8,ax9,ax10,ax11,ax12,ax13,ax14,ax15,ax16]
+			
+			#loop through and set the axis settings and the data to show
+			
+			for y in range(len(axes)):
+			
+				#get the current axis (cax) we're working with
+				
+				cax = axes[y]
+				
+				#get the chunk we're working with.  If we're over the limit, just be done with it.
+				
+				if chunk_range[y] > len(obs_list)-1:
+				
+					continue
+				
+				chunk = obs_list[chunk_range[y]]
+				
+				#set the color according to whether it was flagged
+				
+				if chunk.flag is True:
+				
+					color = 'red'
+					
+				else:
+				
+					color = 'black'
+				
+				cax.plot(chunk.frequency,chunk.intensity,color=color)
+				cax.annotate('[{}]' .format(chunk.tag), xy=(0.1,0.8), xycoords='axes fraction', color=color)
+				
+				cax.locator_params(nbins=3) #Use only 3 actual numbers on the x-axis
+				
+				cax.get_xaxis().get_major_formatter().set_scientific(False) #Don't let the x-axis go into scientific notation
+				cax.get_xaxis().get_major_formatter().set_useOffset(False)		
+				
+			plt.tight_layout()
+			
+			plt.show()				
+										
+	
+	#Plot the stack
+	
+	nflags = 0
+	nlines = 0
+	
+	for obs in obs_list:
+	
+		if obs.flag is True:
+		
+			nflags += 1
+		
+		else:
+		
+			nlines += 1
+			
+	SNR = max(int_avg)	
+	min_val = min(int_avg)	
+	
 	fig = plt.figure()
-	ax = fig.add_subplot(111)
+	ax_s = fig.add_subplot(111)
 
 	minorLocator = AutoMinorLocator(5)
 	plt.xlabel('Velocity (km/s)')
 	plt.ylabel('SNR')
 
 	plt.locator_params(nbins=4) #Use only 4 actual numbers on the x-axis
-	ax.xaxis.set_minor_locator(minorLocator) #Let the program calculate some minor ticks from that
+	ax_s.xaxis.set_minor_locator(minorLocator) #Let the program calculate some minor ticks from that
 
-	ax.get_xaxis().get_major_formatter().set_scientific(False) #Don't let the x-axis go into scientific notation
-	ax.get_xaxis().get_major_formatter().set_useOffset(False)
+	ax_s.get_xaxis().get_major_formatter().set_scientific(False) #Don't let the x-axis go into scientific notation
+	ax_s.get_xaxis().get_major_formatter().set_useOffset(False)
 	
-	ax.plot(vel_avg,int_avg,color='black',label='average',zorder=0)
+	if SNR < 10:
 	
-	drops = []	
+		ax_s.set_ylim([min_val*1.1,10])
+	
+	else:
+	
+		ax_s.set_ylim([-0.1*SNR,1.1*SNR])
+	
+	ax_s.annotate('{} Lines Stacked\n{} Lines Rejected\nSNR: {:.1f}' .format(nlines,nflags,SNR), xy=(0.1,0.8), xycoords='axes fraction',label='legend')
+
+	
+	ax_s.plot(velocity_avg,int_avg,color='black',label='stacked',zorder=0)
+	
+	plt.show()
 	
 	global vel_stacked,int_stacked
 	
-	vel_stacked = np.copy(vel_ref)
+	vel_stacked = np.copy(velocity_avg)
 	int_stacked = np.copy(int_avg)
+	
+	return
+
 
 def cut_spectra(write=False,outputfile='cut.txt',n_fwhm=30):
 
@@ -4324,7 +4403,7 @@ def load_mm1():
 
 def load_tmc1():
 
-	global T,dV,vlsr
+	global T,dV,vlsr,source_size
 
 	read_obs('/Users/Brett/Dropbox/TMC1/tmc_all_gbt_samp.txt')
 	
@@ -4382,7 +4461,64 @@ class Molecule(object):
 		self.aij = aij
 		self.sijmu = sijmu
 		self.vibs = vibs
+		
+class ObsChunk(object):
 
+	def __init__(self,frequency,intensity,cfreq,peak_int,tag):
+	
+		self.frequency = frequency
+		self.intensity = intensity
+		self.velocity = None
+		self.int_samp = None
+		self.int_weighted = None
+		self.cfreq = cfreq
+		self.peak_int = peak_int
+		self.rms = None
+		self.flag = False
+		self.weight = None
+		self.tag = tag
+		
+		self.set_flag()
+		self.set_velocity()
+		
+		self.set_rms()
+		
+		
+		return			
+		
+	def set_flag(self):
+	
+		if len(self.frequency) < 2:
+		
+			self.flag = True		
+			
+		return	
+
+	def set_velocity(self):
+	
+		if self.flag is True:
+		
+			return
+	
+		#make an array the same length as frequency
+	
+		velocity = np.zeros_like(self.frequency)
+		
+		velocity += (self.frequency - self.cfreq)*ckm/self.cfreq
+		
+		self.velocity = velocity
+		
+		return
+		
+	def set_rms(self):
+	
+		if self.flag is True:
+		
+			return
+			
+		self.rms = get_rms(self.intensity)
+		
+		return
 	
 #############################################################
 #							Run Program						#
