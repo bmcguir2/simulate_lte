@@ -4409,7 +4409,7 @@ def get_sim_peak(ll,ul):
 
 #writes out the current simulation parameters - most useful for upper limits analyses
 
-def write_sim_params(outfile=None):
+def write_sim_params(outfile=None,notes=None):
 
 	if outfile is None:
 	
@@ -4431,6 +4431,8 @@ def write_sim_params(outfile=None):
 		if planck is True:
 			output.write('Synth Beam:\t\t{} arcsec\n' .format(synth_beam))
 		output.write('Source Size:\t{} arcsec\n' .format(source_size))
+		if notes is not None:
+			output.write('\nNotes: {}' .format(notes))
 	
 	return
 
