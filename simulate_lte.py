@@ -4395,7 +4395,7 @@ def get_rms(intensity):
 
 def get_obs_rms(ll,ul):
 
-	tmp_i = int_obs[np.where(np.copy(freq_obs)>96420)[0][0]:np.where(np.copy(freq_obs)>96480)[0][0]]
+	tmp_i = int_obs[np.where(np.copy(freq_obs)>ll)[0][0]:np.where(np.copy(freq_obs)>ul)[0][0]]
 
 	return np.around(get_rms(tmp_i),5)
 
