@@ -4531,7 +4531,7 @@ def load_asai(source):
 
 		dV = 3
 		
-	elif source.lower() == 'l448r2':
+	elif source.lower() == 'l1448r2':
 	
 		read_obs('/Users/Brett/Dropbox/Observations/ASAI/L1448R2/l1448r2_concat_nodups.txt')
 	
