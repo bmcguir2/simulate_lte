@@ -4557,7 +4557,7 @@ def load_asai(source):
 
 		dV = 0.5
 		
-	elif source.lower() == 'SVS13A':
+	elif source.lower() == 'svs13a':
 	
 		read_obs('/Users/Brett/Dropbox/Observations/ASAI/SVS13A/svs13a_concat_nodups.txt')
 	
