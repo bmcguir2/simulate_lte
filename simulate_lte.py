@@ -56,6 +56,8 @@
 # 6.16 - added flag for interferometric, allowing beam-dilution for that
 # 6.17 - more robust RMS finding in velocity stacking
 # 6.18 - edge of band detection to velocity stacking
+# 6.19 - better flagging of lines in velocity stacking
+# 6.20 - adds load_asai shortcut
 
 #############################################################
 #							Preamble						#
@@ -85,7 +87,7 @@ import math
 import matplotlib.gridspec as gridspec
 #warnings.filterwarnings('error')
 
-version = 6.18
+version = 6.19
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -1369,6 +1371,13 @@ def check_Q(x):
 	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,x,catalog_file,vibs)
 	
 	print('Q({}) = {:.0f}' .format(x,Q))
+	
+	
+#get_Q returns Q at a given temperature x
+
+def get_Q(x):
+
+	return calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,x,catalog_file,vibs)
 
 #trim_array trims any given input array to the specified frequency ranges
 
@@ -3544,8 +3553,12 @@ def find_nearest(array,value):
 	
 #velocity_stack does a velocity stacking analysis using the current ll and ul, and the current simulation, using lines that are at least 0.1 sigma or larger, with the brightest simulated line scaled to be 1 sigma.
 
-def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,plot_chunks=False):
+def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,plot_chunks=False,blank_lines=False):
 
+	if flag_lines is True and blank_lines is True:
+	
+		print('You have set both flag_lines and blank_lines to True.  Flag_lines will supercede this and blank_lines will do nothing.  You have been warned.')
+	
 	freq_local = np.copy(freq_obs)
 	int_local = np.copy(int_obs)
 
@@ -3652,7 +3665,7 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 		
 		if flag_lines is True:
 		
-			if any(obs.intensity > flag_int_thresh*obs.rms):
+			if any(abs(obs.intensity) > flag_int_thresh*obs.rms):
 			
 				obs.flag = True
 				
@@ -3660,7 +3673,13 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 				
 					print('I detected and deleted a line at {} MHz from the stack.' .format(obs.cfreq))
 					
-				continue	
+				continue
+				
+		#if we're just blanking some lines:
+		
+		if blank_lines is True:
+		
+			obs.intensity[abs(obs.intensity) > flag_int_thresh*obs.rms] = np.nan		
 
 	#now we have to figure out the weights for the arrays.  We start by finding the maximum line height, and scaling all of them so that the largest value is 1, excepting anything we've flagged.
 	
@@ -3751,6 +3770,11 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	#finally, we get the final rms, and divide out to get to snr
 	
 	int_avg /= get_rms(int_avg)
+	
+	#drop some edge channels
+	
+	int_avg = int_avg[5:-5]
+	velocity_avg = velocity_avg[5:-5]
 
 	#Plotting!!!!
 
@@ -4366,9 +4390,49 @@ def get_rms(intensity):
 
 	return	noise_rms
 
+
+#get the rms from the observations over a specified chunk in frequency space
+
+def get_obs_rms(ll,ul):
+
+	tmp_i = int_obs[np.where(np.copy(freq_obs)>96420)[0][0]:np.where(np.copy(freq_obs)>96480)[0][0]]
+
+	return np.around(get_rms(tmp_i),5)
+
+#writes out the current simulation parameters - most useful for upper limits analyses
+
+def write_sim_params(outfile=None):
+
+	if outfile is None:
+	
+		outfile = current.split('/')[-1].split('.')[0] + '.sim_params'
+		
+	Q = get_Q(T)
+		
+	with open(outfile, 'w') as output:
+	
+		output.write('Catalog File:\t{}\n' .format(current))
+		output.write('Spectrum File:\t{}\n' .format(spec))
+		output.write('Column Density:\t{:.2e} cm-2\n' .format(C))
+		output.write('Tex:\t\t\t{} K\n' .format(int(T)))
+		output.write('dV:\t\t\t\t{:.2f} km/s\n' .format(dV))
+		output.write('vlsr:\t\t\t{:.2f} km/s\n' .format(vlsr))
+		output.write('Q({})\t\t\t{}\n' .format(int(T),int(Q)))
+		if planck is False:
+			output.write('Dish Size:\t\t{} m\n' .format(dish_size))
+		if planck is True:
+			output.write('Synth Beam:\t\t{} arcsec\n' .format(synth_beam))
+		output.write('Source Size:\t{} arcsec\n' .format(source_size))
+	
+	return
+
+
+
 #############################################################
 #				Custom Loading for Common Sources			#
 #############################################################	
+
+#Change these paths to the local files on your machine.  
 
 #load_mm1() loads the default MM1 pointing position extraction and parameters.
 
@@ -4403,9 +4467,9 @@ def load_mm1():
 
 def load_tmc1():
 
-	global T,dV,vlsr,source_size
+	global T,dV,vlsr,source_size,res
 
-	read_obs('/Users/Brett/Dropbox/TMC1/tmc_all_gbt_samp.txt')
+	read_obs('/Users/Brett/Dropbox/TMC1/tmc_all_gbt.txt')
 	
 	T = 8
 
@@ -4417,7 +4481,98 @@ def load_tmc1():
 
 	autoset_limits()
 	
+	res *= 2
+	
+#load_tmc1() loads the default MM1 pointing position extraction and parameters.
 
+def load_asai(source):
+
+	global T,dV,vlsr,source_size,res,dish_size
+	
+	dish_size = 30
+	
+	if source.lower() == 'barnard1' or source.lower() == 'b1':
+	
+		read_obs('/Users/Brett/Dropbox/Observations/ASAI/Barnard1/b1_concat_nodups.txt')
+	
+		T = 10
+
+		dV = 0.8
+	
+	elif source.lower() == 'iras4a':
+	
+		read_obs('/Users/Brett/Dropbox/Observations/ASAI/IRAS4A/iras4a_concat_nodups.txt')
+	
+		T = 21
+
+		dV = 5	
+
+	elif source.lower() == 'l1157b1':
+	
+		read_obs('/Users/Brett/Dropbox/Observations/ASAI/L1157B1/l1157b1_concat_nodups.txt')
+	
+		T = 60
+
+		dV = 8		
+
+	elif source.lower() == 'l1157mm':
+	
+		read_obs('/Users/Brett/Dropbox/Observations/ASAI/L1157mm/l1157mm_concat_nodups.txt')
+	
+		T = 60
+
+		dV = 3
+		
+	elif source.lower() == 'l448r2':
+	
+		read_obs('/Users/Brett/Dropbox/Observations/ASAI/L1448R2/l1448r2_concat_nodups.txt')
+	
+		T = 60
+
+		dV = 8	
+		
+	elif source.lower() == 'l1527':
+	
+		read_obs('/Users/Brett/Dropbox/Observations/ASAI/L1527/l1527_concat_nodups.txt')
+	
+		T = 12
+
+		dV = 0.5
+		
+	elif source.lower() == 'l1544':
+	
+		read_obs('/Users/Brett/Dropbox/Observations/ASAI/l1544/l1544_concat_nodups.txt')
+	
+		T = 10
+
+		dV = 0.5
+		
+	elif source.lower() == 'SVS13A':
+	
+		read_obs('/Users/Brett/Dropbox/Observations/ASAI/SVS13A/svs13a_concat_nodups.txt')
+	
+		T = 19
+
+		dV = 3.0
+		
+	elif source.lower() == 'tmc1':
+	
+		read_obs('/Users/Brett/Dropbox/Observations/ASAI/TMC1/tmc1_concat_nodups.txt')
+	
+		T = 7
+
+		dV = 0.3
+		
+	else:
+	
+		print('Source name not recognized.  Choose from: Barnard1, IRAS4A, L1157B1, L1157mm, L1448R2, L1527, L1544, SVS13A, TMC1')									
+	
+		return
+	
+	autoset_limits()
+	
+	return
+	
 
 #############################################################
 #							Classes for Storing Results		#
