@@ -4398,6 +4398,14 @@ def get_obs_rms(ll,ul):
 	tmp_i = int_obs[np.where(np.copy(freq_obs)>ll)[0][0]:np.where(np.copy(freq_obs)>ul)[0][0]]
 
 	return np.around(get_rms(tmp_i),5)
+	
+#get the peak simulated value in a region
+
+def get_sim_peak(ll,ul):
+
+	tmp_i = int_sim[np.where(np.copy(freq_sim)>ll)[0][0]:np.where(np.copy(freq_sim)>ul)[0][0]]
+	
+	return np.around(np.amax(tmp_i),5)
 
 #writes out the current simulation parameters - most useful for upper limits analyses
 
