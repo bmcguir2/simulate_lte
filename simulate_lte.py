@@ -60,6 +60,7 @@
 # 6.20 - adds load_asai shortcut
 # 6.21 - more accurate vibrational partition functions
 # 6.22 - more functionality to sim_params
+# 6.23 - custom aliases
 
 #############################################################
 #							Preamble						#
@@ -89,7 +90,7 @@ import math
 import matplotlib.gridspec as gridspec
 #warnings.filterwarnings('error')
 
-version = 6.21
+version = 6.23
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -4479,7 +4480,45 @@ def write_sim_params(outfile=None,notes=None,rms=False,lines=False):
 	
 	return
 
+#############################################################
+#						Custom Aliases	   					#
+#############################################################
 
+def mod10():
+
+	modC(C*10)
+	
+	return
+	
+def mod2():
+
+	modC(C*2)
+	
+	return
+	
+def mod12(): #this is NOT modC(C*12)
+
+	modC(C*1.2)
+	
+	return
+	
+def mod_10():
+
+	modC(C/10)
+	
+	return
+	
+def mod_2():
+
+	modC(C/2)
+	
+	return
+	
+def mod_12(): #this is NOT modC(C/12)
+
+	modC(C/1.2)
+	
+	return
 
 #############################################################
 #				Custom Loading for Common Sources			#
