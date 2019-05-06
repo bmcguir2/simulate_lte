@@ -59,6 +59,7 @@
 # 6.19 - better flagging of lines in velocity stacking
 # 6.20 - adds load_asai shortcut
 # 6.21 - more accurate vibrational partition functions
+# 6.22 - more functionality to sim_params
 
 #############################################################
 #							Preamble						#
@@ -2805,7 +2806,7 @@ def plot_residuals():
 
 #print_lines will print out the catalog info on lines that are above a certain threshold for a molecule.  The default just prints out the current lines above a standard 1 mK threshold.		
 
-def print_lines(mol='current',thresh=float('-inf'),rest=True,mK=False):
+def print_lines(mol='current',thresh=float('-inf'),rest=True,mK=False,return_array = False):
 
 	global gauss
 	
@@ -2984,13 +2985,27 @@ def print_lines(mol='current',thresh=float('-inf'),rest=True,mK=False):
 						
 	#printing lines from storage has been disabled
 			
-	for x in range(len(print_array)):
+	if return_array is False:
 	
-		print('{}' .format(print_array[x]))		
+		for x in range(len(print_array)):
+	
+			print('{}' .format(print_array[x]))	
+			
+		if gflag == True:
 		
-	if gflag == True:
+			gauss = True
+			
+		return 				
+			
+	if return_array is True:
+	
+		if gflag == True:
 		
-		gauss = True	
+			gauss = True	
+	
+		return print_array
+		
+	
 		
 #gauss_func is a model gaussian function to be used with gauss_fit below
 
@@ -4414,7 +4429,7 @@ def get_sim_peak(ll,ul):
 
 #writes out the current simulation parameters - most useful for upper limits analyses
 
-def write_sim_params(outfile=None,notes=None):
+def write_sim_params(outfile=None,notes=None,rms=False,lines=False):
 
 	if outfile is None:
 	
@@ -4436,8 +4451,29 @@ def write_sim_params(outfile=None,notes=None):
 		if planck is True:
 			output.write('Synth Beam:\t\t{} arcsec\n' .format(synth_beam))
 		output.write('Source Size:\t{} arcsec\n' .format(source_size))
+		
+		if rms is True:
+		
+			output.write('RMS in Range:\t{} mK\n' .format(get_obs_rms(ll,ul)*1000))
+		
+		if lines is True:
+		
+			output.write('\n\n++++++Simulated Lines++++++\n\n')
+		
+			print_array = print_lines(mol='current',thresh=float('-inf'),rest=True,mK=True,return_array = True)
+			
+			for x in range(len(print_array)):
+	
+				output.write('{}\n' .format(print_array[x]))	
+		
+			output.write('\n')
+		
+		
 		if notes is not None:
-			output.write('\nNotes: {}' .format(notes))
+		
+			output.write('\n++++++Notes++++++\n\n')
+		
+			output.write('{}' .format(notes))
 	
 	return
 
