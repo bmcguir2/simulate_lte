@@ -176,7 +176,7 @@ lines = {} #dictionary to hold matplotlib lines
 
 tbg = [] #to hold background temperatures
 
-vibs = None #This is a list of vibrational *frequencies*
+vibs = None #This is a list of vibrational *frequencies* in units of cm-1
 
 ############ Tbg Parameters ##############
 
@@ -4446,6 +4446,8 @@ def write_sim_params(outfile=None,notes=None,rms=False,lines=False):
 		output.write('dV:\t\t\t\t{:.2f} km/s\n' .format(dV))
 		output.write('vlsr:\t\t\t{:.2f} km/s\n' .format(vlsr))
 		output.write('Q({})\t\t\t{}\n' .format(int(T),int(Q)))
+		if vibs is not None:
+			output.write('Vib Freqs:\t\t{}\n' .format(vibs))
 		if planck is False:
 			output.write('Dish Size:\t\t{} m\n' .format(dish_size))
 		if planck is True:
