@@ -923,13 +923,9 @@ def calc_qvib(vibs,T):
 		
 			#We sum over all the quanta of vibration possible in that mode (ish - we use 100, but it'll never matter much past 1 or 2)
 			
-			for y in range(20):
-			
-				#qvib_x = np.sum(np.exp(-(np.arange(100)+0.5)*x/(0.695*T)))
+			for y in range(100):
 		
-				qvib *= 1/(1-np.exp(-((y+0.5)*x/(0.695*T)))		
-	
-	#qvib = 1/(1-qvib)		
+				qvib *= 1/(1-np.exp(-((y+0.5)*x/(0.695*T))))			
 				
 	return qvib	
 
