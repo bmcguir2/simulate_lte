@@ -58,6 +58,7 @@
 # 6.18 - edge of band detection to velocity stacking
 # 6.19 - better flagging of lines in velocity stacking
 # 6.20 - adds load_asai shortcut
+# 6.21 - more accurate vibrational partition functions
 
 #############################################################
 #							Preamble						#
@@ -87,7 +88,7 @@ import math
 import matplotlib.gridspec as gridspec
 #warnings.filterwarnings('error')
 
-version = 6.19
+version = 6.21
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -174,7 +175,7 @@ lines = {} #dictionary to hold matplotlib lines
 
 tbg = [] #to hold background temperatures
 
-vibs = None
+vibs = None #This is a list of vibrational *frequencies*
 
 ############ Tbg Parameters ##############
 
@@ -920,7 +921,15 @@ def calc_qvib(vibs,T):
 		
 		for x in vibs:
 		
-			qvib *= 1/(1-np.exp(-x/(0.695*T)))		
+			#We sum over all the quanta of vibration possible in that mode (ish - we use 100, but it'll never matter much past 1 or 2)
+			
+			for y in range(20):
+			
+				#qvib_x = np.sum(np.exp(-(np.arange(100)+0.5)*x/(0.695*T)))
+		
+				qvib *= 1/(1-np.exp(-((y+0.5)*x/(0.695*T)))		
+	
+	#qvib = 1/(1-qvib)		
 				
 	return qvib	
 
