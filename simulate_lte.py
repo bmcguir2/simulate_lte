@@ -4456,7 +4456,7 @@ def write_sim_params(outfile=None,notes=None,rms=False,lines=False):
 		
 		if rms is True:
 		
-			output.write('RMS in Range:\t{} mK\n' .format(get_obs_rms(ll,ul)*1000))
+			output.write('RMS in Range:\t{:.2f} mK\n' .format(get_obs_rms(ll,ul)*1000))
 		
 		if lines is True:
 		
