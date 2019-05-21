@@ -61,6 +61,10 @@
 # 6.21 - more accurate vibrational partition functions
 # 6.22 - more functionality to sim_params
 # 6.23 - custom aliases
+# 6.24 - updated sim_params for tbg
+# 6.25 - new partition functions for some molecules
+# 6.26 - adds velocity stack postage stamp plot functionality
+# 6.27 - adds ability to make postage-stamp plots
 
 #############################################################
 #							Preamble						#
@@ -82,15 +86,22 @@ import time as tm
 import warnings
 from matplotlib.ticker import AutoMinorLocator
 import matplotlib.pyplot as plt
+import matplotlib
+import matplotlib.ticker as ticker
 import itertools
 from datetime import datetime
 from scipy.optimize import curve_fit
 import peakutils
 import math
 import matplotlib.gridspec as gridspec
-#warnings.filterwarnings('error')
+from scipy.optimize import minimize
 
-version = 6.23
+matplotlib.rc('text', usetex = True)
+matplotlib.rc('text.latex',preamble=r'\usepackage{cmbright}')
+
+
+
+version = 6.27
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -784,7 +795,7 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 		
 	elif 'methylformate' in catalog_file.lower() and '13' not in catalog_file.lower():
 	
-		Q = 1.789212*T**2 + 135.630221*T - 1422.683256
+		Q = 3.29808*10**-8*T**5 - 2.59463*10**-5*T**4 + 5.80410*10**-3*T**3 + 1.60794*T**2 + 95.0922*T-328.468
 		
 	elif 'glycolaldehyde' in catalog_file.lower() and '13' not in catalog_file.lower():
 	
@@ -798,6 +809,22 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 	
 		#Q = 23.82947*T**(1.50124) #JPL DATABASE VALUE
 		Q = 5.957729*T**(1.501233) #Ilyushin 2014 paper value
+		
+	elif 'hc9n' in catalog_file.lower() and 'hfs' not in catalog_file.lower():
+	
+		Q = 71.7308577*T + 0.02203968
+		
+	elif 'hc9n' in catalog_file.lower() and 'hfs' in catalog_file.lower(): 
+	
+		Q = 3*71.7308577*T + 3*0.02203968
+		
+	elif 'hc7n' in catalog_file.lower() and 'hfs' not in catalog_file.lower():
+	
+		Q = 36.94999*T + 0.1356045
+		
+	elif 'hc7n' in catalog_file.lower() and 'hfs' in catalog_file.lower(): 
+	
+		Q = 3*36.94999*T + 3*0.1356045		
 	
 	else:
 	
@@ -3574,7 +3601,7 @@ def find_nearest(array,value):
 	
 #velocity_stack does a velocity stacking analysis using the current ll and ul, and the current simulation, using lines that are at least 0.1 sigma or larger, with the brightest simulated line scaled to be 1 sigma.
 
-def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,plot_chunks=False,blank_lines=False):
+def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,plot_chunks=False,blank_lines=False,fix_y=False):
 
 	if flag_lines is True and blank_lines is True:
 	
@@ -3873,6 +3900,10 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 				else:
 				
 					color = 'black'
+					
+				if fix_y is not False:
+				
+					cax.set_ylim(fix_y[0],fix_y[1])
 				
 				cax.plot(chunk.frequency,chunk.intensity,color=color)
 				cax.annotate('[{}]' .format(chunk.tag), xy=(0.1,0.8), xycoords='axes fraction', color=color)
@@ -4436,6 +4467,8 @@ def write_sim_params(outfile=None,notes=None,rms=False,lines=False):
 	
 		outfile = current.split('/')[-1].split('.')[0] + '.sim_params'
 		
+	peak_idx = np.argmax(np.copy(freq_sim))	
+		
 	Q = get_Q(T)
 		
 	with open(outfile, 'w') as output:
@@ -4444,6 +4477,7 @@ def write_sim_params(outfile=None,notes=None,rms=False,lines=False):
 		output.write('Spectrum File:\t{}\n' .format(spec))
 		output.write('Column Density:\t{:.2e} cm-2\n' .format(C))
 		output.write('Tex:\t\t\t{} K\n' .format(int(T)))
+		output.write('Tbg:\t\t\t{} K (@ {:.2f} MHz)\n' .format(check_tbg(freq_sim[peak_idx]),freq_sim[peak_idx]))
 		output.write('dV:\t\t\t\t{:.2f} km/s\n' .format(dV))
 		output.write('vlsr:\t\t\t{:.2f} km/s\n' .format(vlsr))
 		output.write('Q({})\t\t\t{}\n' .format(int(T),int(Q)))
@@ -4479,6 +4513,490 @@ def write_sim_params(outfile=None,notes=None,rms=False,lines=False):
 			output.write('{}' .format(notes))
 	
 	return
+
+#makes a postage stamp plot of the observations and current simulation (optional).  Yes, I used PP as an abbreviation.  Sue me.
+
+def make_postage_plot(PP):
+
+	#If the user specified both GHz = True and velocity = True, yell at them.
+	
+	if PP.GHz is True and PP.velocity is True:
+	
+		print('CRITICAL ERROR: You cannot specify both GHz = True and velocity = True.  Please choose only one.  Cannot continue.')
+		
+		return
+		
+	#close the old figure if there is one
+	
+	plt.close(fig='stamps')	
+
+	#initialize a figure
+	
+	plt.ion()
+	
+	#if the user specified a size, use that
+	
+	if PP.figsize != None:
+	
+		figsize = PP.figsize
+		
+	#otherwise default to a 3:2 ratio	
+		
+	else:
+	
+		figsize = (12,8)
+	
+	fig = plt.figure(num='stamps',figsize=figsize)
+	
+	#set some defaults
+	
+	fontparams = {'size':PP.labels_size, 'family':'sans-serif','sans-serif':['Helvetica']}
+	
+	plt.rc('font',**fontparams)
+	plt.rc('mathtext', fontset='stixsans')
+	
+	#get the number of figures total
+	
+	nfigs = len(PP.lines)	
+	
+	#figure out how many rows and columns we will have to make the grid.  Multistep logic.
+	
+	#if the user specified both, we use those and move on
+	
+	if PP.nrows != None and PP.ncols != None:
+	
+		nrows = PP.nrows
+		ncols = PP.ncols
+		
+	#if only nrows is given...	
+		
+	elif PP.nrows != None:
+	
+		nrows = PP.nrows
+		
+		#get ncols, rounding up
+		
+		ncols = np.ceil(nfits/nrows)
+		
+	#if only ncols is given...
+	
+	elif PP.ncols != None:
+	
+		ncols = PP.ncols
+		
+		#get nrows, rounding up
+		
+		nrows = np.ceil(nfits/nrows)
+	
+	#Last, if the user has not specified either, it's easy, we just make a square.
+	
+	else:
+	
+		#get the square root of the number of figures and round up.  So a 5 spectrum plot ends up as a 3x3 grid.  User can fix as they want.
+	
+		nrows = int(np.ceil(np.sqrt(nfigs)))
+		ncols = int(np.ceil(np.sqrt(nfigs)))
+		
+			
+	#but we warn the users if they don't have enough!
+	
+	if nrows*ncols < nfigs:
+	
+		print('CRITICAL ERROR: The number of rows and columns you specified is not enough to make all the stamps you specified.\n')
+		print('You asked for a {}x{} grid, which is {} stamps, but there are {} stamps given.  Cannot continue.' .format(nrows,ncols,nfigs))
+		
+		return	
+		
+	#make a gridspec for that size
+	
+	gs = gridspec.GridSpec(nrows,ncols)
+	
+	#if we're in velocity space, make everything tight because we won't have as many labels
+	
+	if PP.velocity is True:
+	
+		gs.update(hspace=0.1)
+		gs.update(wspace=0.1)
+		
+	else:
+	
+		gs.update(hspace=0.2)
+		gs.update(wspace=0.1)		
+	
+	#make subplots to add, using x as the dictionary key, and we'll make sure to index that the same as the figs list
+	
+	gs_dict = {}
+	
+	x = 0
+	
+	while x < len(PP.lines):
+	
+		for y in range(nrows):
+		
+			for z in range(ncols):
+			
+				gs_dict[x] = plt.subplot(gs[y,z])
+				
+				x += 1
+				
+	#get a handle on the number of subplots
+	
+	nplots = nrows*ncols
+				
+	#now loop through the list of postage stamps (PS)
+	
+	for x in range(nplots):
+	
+		#get the current axis (cax) we're working with
+	
+		cax = gs_dict[x]
+		
+		if x > len(PP.lines) - 1:
+		
+			cax.set_axis_off()
+			
+			continue
+		
+		#get the current postage stamp we're dealing with
+		
+		PS = PP.lines[x]
+		
+		#if y limits are set, then we use those
+		
+		if PP.ylims != None:
+		
+			cax.set_ylim(PP.ylims[0],PP.ylims[1])		
+			
+		#set the local cfreq, and if indicated, augment it by the vlsr, so we're shifted to center
+		
+		if PP.vlsr != None:
+		
+			cfreq = PS.cfreq - PS.cfreq*PP.vlsr/ckm
+			
+		else:
+		
+			cfreq = PS.cfreq
+					
+		#ok, now need to chunk out the data we're working with.  Start with the observations.
+		
+		if PP.obs is True:
+		
+			#get the lower limit that's nwidths away from the center frequency
+			
+			ll = cfreq - PP.nwidths*dV*cfreq/ckm
+			ul = cfreq + PP.nwidths*dV*cfreq/ckm
+			
+			#find the closest values in the observations for these
+			
+			l_idx = find_nearest(freq_obs,ll)
+			u_idx = find_nearest(freq_obs,ul)
+			
+			#chunk everything out based on that
+			
+			freq_obs_tmp = np.copy(freq_obs[l_idx:u_idx])
+			int_obs_tmp = np.copy(int_obs[l_idx:u_idx])
+			
+			#if we are resampling, do that now
+			
+			if PP.v_res is not None:
+			
+				#calculate the new resolution in MHz
+				
+				df = PP.v_res*cfreq/ckm
+				
+				#generate a new frequency array
+				
+				new_freq = np.arange(ll,ul,df)
+				
+				#interpolate the intensity data onto this
+				
+				new_int = np.interp(new_freq,freq_obs_tmp,int_obs_tmp,left=np.nan,right=np.nan)
+				
+				#set these back in
+				
+				freq_obs_tmp = np.copy(new_freq)
+				int_obs_tmp = np.copy(new_int)		
+				
+						
+			#dealing with alternative plotting and then add everything to the plot, using specified values
+			
+			if PP.GHz is True:
+		
+				freq_obs_tmp *= 1000
+				
+			if PP.milli is True:
+			
+				int_obs_tmp *= 1000	
+				
+			if PP.velocity is True:
+		
+				velocity_obs_tmp = np.zeros_like(freq_obs_tmp)
+			
+				velocity_obs_tmp += (freq_obs_tmp - cfreq)*ckm/cfreq 	
+				
+				cax.plot(velocity_obs_tmp,int_obs_tmp,color=PP.obs_color,drawstyle=PP.obs_draw,zorder=1)				
+			
+			else:
+			
+				cax.plot(freq_obs_tmp,int_obs_tmp,color=PP.obs_color,drawstyle=PP.obs_draw,zorder=1)		
+			
+			
+		#Next the simulation
+		
+		if PP.sim is True:
+				
+			#find the closest values in the simulation for these
+			
+			l_idx = find_nearest(freq_sim,ll)
+			u_idx = find_nearest(freq_sim,ul)
+			
+			#chunk everything out based on that
+			
+			freq_sim_tmp = np.copy(freq_sim[l_idx:u_idx])
+			int_sim_tmp = np.copy(int_sim[l_idx:u_idx])	
+			
+			#if we are resampling, do that now
+			
+			if PP.v_res is not None:
+			
+				#calculate the new resolution in MHz
+				
+				df = PP.v_res*cfreq/ckm
+				
+				#generate a new frequency array
+				
+				new_freq = np.arange(ll,ul,df)
+				
+				#interpolate the intensity data onto this
+				
+				new_int = np.interp(new_freq,freq_sim_tmp,int_sim_tmp,left=np.nan,right=np.nan)
+				
+				#set these back in
+				
+				freq_sim_tmp = np.copy(new_freq)
+				int_sim_tmp = np.copy(new_int)		
+			
+			
+		#dealing with alternative plotting and then add everything to the plot, using specified values
+				
+			if PP.GHz is True:
+
+				freq_sim_tmp *= 1000
+				
+			if PP.milli is True:
+			
+				int_sim_tmp *= 1000
+				
+			if PP.velocity is True:			
+			
+				velocity_sim_tmp = np.zeros_like(freq_sim_tmp)
+			
+				velocity_sim_tmp += (freq_sim_tmp - cfreq)*ckm/cfreq
+				
+				cax.plot(velocity_sim_tmp,int_sim_tmp,color=PP.sim_color,drawstyle=PP.sim_draw,zorder=2)	
+				
+			else:
+			
+				cax.plot(freq_sim_tmp,int_sim_tmp,color=PP.sim_color,drawstyle=PP.sim_draw,zorder=2)
+				
+		#Annotate the thing, if one has been provided
+		
+		if PS.label != None:
+		
+			cax.annotate('{}' .format(PS.label), xy=(0.05,0.85), xycoords='axes fraction', color='black')
+			
+		#Add an annotation for the restfrequency used for the velocity calculation if we're in velocity space
+		
+		if PP.velocity is True:
+		
+			if PP.GHz is True:
+			
+				units = 'GHz'
+				
+			else:
+			
+				units = 'MHz'
+		
+			cfreq_label = '{} {}' .format(PS.cfreq,units)
+			
+			align_arg = {'ha' : 'right'}
+		
+			cax.annotate(cfreq_label, xy=(0.95,0.85), xycoords='axes fraction', color='black', **align_arg )				
+			
+		#set the number of x-ticks
+				
+		cax.locator_params(axis='x', tight=True, nbins=PP.xticks)
+			
+		#set the number of y-ticks		
+		
+		cax.locator_params(axis='y', tight=True, nbins=PP.yticks)
+			
+		#Don't let either axis go into scientific notation or have some sort of offset if we did things automagically above
+		
+		if PP.velocity is True:
+		
+			cax.get_xaxis().get_major_formatter().set_scientific(False)
+			cax.get_xaxis().get_major_formatter().set_useOffset(False)	
+		
+		#add some minor ticks
+		
+		cax.minorticks_on()
+		
+		cax.tick_params(axis='x', which='minor', direction='in')
+		cax.tick_params(axis='y', which='minor', direction='in')
+		
+		#make sure ticks are on both mirror axes
+		
+		cax.yaxis.set_ticks_position('both')
+		cax.xaxis.set_ticks_position('both')
+		
+		#if we're in velocity space, turn off the excess labels.  We'll turn them back on later.
+		
+		if PP.velocity is True:
+				
+			cax.tick_params(direction='in',labelbottom=False,labelleft=False)
+			
+		#if we're in frequency space, just turn off the left labels
+		
+		else:
+		
+			cax.tick_params(direction='in',labelleft=False)	
+		
+
+	#deal with the x and y labels
+	
+	#if we're only labeling the lower left, then we do that and move on.
+	
+	if PP.lower_left_only is True:
+	
+		#first figuring out what the lower left plot is
+	
+		lower_left = nrows*ncols - (ncols)
+	
+		cax = gs_dict[lower_left]
+	
+		#x-axis logic
+	
+		if PP.GHz is True:
+	
+			cax.set_xlabel('Frequency (GHz)')
+		
+		elif PP.velocity is True:
+	
+			cax.set_xlabel('Velocity (km s$^{-1}$)')
+		
+		else:
+	
+			cax.set_xlabel('Frequency (MHz)')
+		
+		#y-axis logic
+	
+		if PP.milli is True:
+	
+			if planck is True:
+		
+				cax.set_ylabel('mJy beam$^{-1}$')
+			
+			else:
+		
+				cax.set_ylabel('T$_{\mbox{A}}$* (mK)')
+			
+		else:
+	
+			if planck is True:
+		
+				cax.set_ylabel('Jy beam$^{-1}$')
+			
+			else:
+		
+				cax.set_ylabel('T$_{\mbox{A}}$* (K)')	
+			
+		cax.tick_params(direction='in',labelbottom=True,labelleft=True)		
+		
+	#now labeling bottom row and left column only	
+		
+	else:
+			
+		#first figuring out what the lower left plot is
+	
+		lower_left = nrows*ncols - (ncols)
+		
+		#now iterating over all the ones in the bottom row
+		
+		for x in range(lower_left,nfigs):
+		
+			cax = gs_dict[x]	
+			
+			#x-axis logic
+	
+			if PP.GHz is True:
+	
+				cax.set_xlabel('Frequency (GHz)')
+		
+			elif PP.velocity is True:
+	
+				cax.set_xlabel('Velocity (km s$^{-1}$)')
+		
+			else:
+	
+				cax.set_xlabel('Frequency (MHz)')
+				
+			cax.tick_params(direction='in',labelbottom=True)
+			
+		#Now we figure out the column indexes.  They'll be 0, then 0+ncols, then 0+2*ncols, up to 0+(ncols*nrows)	
+		
+		l_idx = [0]
+		
+		if nrows > 1:
+		
+			for x in range(1,nrows):
+			
+				l_idx.append(ncols*x)
+				
+		#iterate over those indexes and set the labels
+		
+		for idx in l_idx:
+		
+			cax = gs_dict[idx]
+			
+			#y-axis logic
+	
+			if PP.milli is True:
+	
+				if planck is True:
+		
+					cax.set_ylabel('mJy beam$^{-1}$')
+			
+				else:
+		
+					cax.set_ylabel('T$_{\mbox{A}}$* (mK)')
+			
+			else:
+	
+				if planck is True:
+		
+					cax.set_ylabel('Jy beam$^{-1}$')
+			
+				else:
+		
+					cax.set_ylabel('T$_{\mbox{A}}$* (K)')	
+			
+			cax.tick_params(direction='in',labelleft=True)		
+							
+	#set the title, if one exists
+	
+	if PP.title != None:
+	
+		plt.title(PP.title)		
+	
+	plt.show()					
+	
+	if PP.pdf is not False:
+	
+		plt.savefig(PP.pdf,format='pdf',transparent=True,bbox_inches='tight')
+
+	return
+
 
 #############################################################
 #						Custom Aliases	   					#
@@ -4766,7 +5284,48 @@ class ObsChunk(object):
 		self.rms = get_rms(self.intensity)
 		
 		return
+		
+class PostagePlot(object):
+
+	def __init__(self,lines,nwidths=40,ylims=None,velocity=False,pdf=False,obs=True,sim=True,nrows=None,ncols=None,obs_color='Black',sim_color='Red',obs_draw='steps',sim_draw='steps',title=None,GHz=False,xticks=3,yticks=3,xlabel=None,ylabel=None,milli=False,vlsr=vlsr,v_res=None,figsize=None,labels_size=18,lower_left_only=False):
 	
+		self.lines = lines
+		self.nwidths = nwidths
+		self.ylims = ylims
+		self.velocity = velocity
+		self.pdf = pdf
+		self.obs = obs
+		self.sim = sim
+		self.nrows = nrows
+		self.ncols = ncols
+		self.obs_color = obs_color
+		self.sim_color = sim_color
+		self.obs_draw = obs_draw
+		self.sim_draw = sim_draw
+		self.title = title
+		self.GHz = GHz
+		self.xticks = xticks
+		self.yticks = yticks
+		self.xlabel = xlabel
+		self.ylabel = ylabel
+		self.milli = milli
+		self.vlsr = vlsr
+		self.v_res = v_res
+		self.figsize = figsize
+		self.labels_size = labels_size
+		self.lower_left_only = lower_left_only
+				
+		return
+		
+class PostageStamp(object):
+
+	def __init__(self,cfreq,label=None):
+	
+		self.cfreq = cfreq
+		self.label = label
+	
+		return
+			
 #############################################################
 #							Run Program						#
 #############################################################
