@@ -4734,11 +4734,11 @@ def make_postage_plot(PP):
 			
 				velocity_obs_tmp += (freq_obs_tmp - cfreq)*ckm/cfreq 	
 				
-				cax.plot(velocity_obs_tmp,int_obs_tmp,color=PP.obs_color,drawstyle=PP.obs_draw,zorder=1)				
+				cax.plot(velocity_obs_tmp,int_obs_tmp,color=PP.obs_color,drawstyle=PP.obs_draw,zorder=1,linewidth=PP.obs_thick)				
 			
 			else:
 			
-				cax.plot(freq_obs_tmp,int_obs_tmp,color=PP.obs_color,drawstyle=PP.obs_draw,zorder=1)		
+				cax.plot(freq_obs_tmp,int_obs_tmp,color=PP.obs_color,drawstyle=PP.obs_draw,zorder=1,linewidth=PP.obs_thick)		
 			
 			
 		#Next the simulation
@@ -4793,11 +4793,11 @@ def make_postage_plot(PP):
 			
 				velocity_sim_tmp += (freq_sim_tmp - cfreq)*ckm/cfreq
 				
-				cax.plot(velocity_sim_tmp,int_sim_tmp,color=PP.sim_color,drawstyle=PP.sim_draw,zorder=2)	
+				cax.plot(velocity_sim_tmp,int_sim_tmp,color=PP.sim_color,drawstyle=PP.sim_draw,zorder=2,linewidth=PP.sim_thick)	
 				
 			else:
 			
-				cax.plot(freq_sim_tmp,int_sim_tmp,color=PP.sim_color,drawstyle=PP.sim_draw,zorder=2)
+				cax.plot(freq_sim_tmp,int_sim_tmp,color=PP.sim_color,drawstyle=PP.sim_draw,zorder=2,linewidth=PP.sim_thick)
 				
 		#Annotate the thing, if one has been provided
 		
