@@ -3601,7 +3601,7 @@ def find_nearest(array,value):
 	
 #velocity_stack does a velocity stacking analysis using the current ll and ul, and the current simulation, using lines that are at least 0.1 sigma or larger, with the brightest simulated line scaled to be 1 sigma.
 
-def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,plot_chunks=False,blank_lines=False,fix_y=False):
+def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,plot_chunks=False,blank_lines=False,fix_y=False,line_stats=True,pdf=False,labels_size=12,figsize=(6,4),thick=1.0,plotlabel=None,ylims=None,calc_sigma=False,label_sigma=False,plot_sigma=False):
 
 	if flag_lines is True and blank_lines is True:
 	
@@ -3815,18 +3815,32 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	
 	int_avg = np.nansum(interped_ints,axis=0)/rms_array
 	
-	#finally, we get the final rms, and divide out to get to snr
-	
-	int_avg /= get_rms(int_avg)
-	
 	#drop some edge channels
 	
 	int_avg = int_avg[5:-5]
 	velocity_avg = velocity_avg[5:-5]
+	
+	#finally, we get the final rms, and divide out to get to snr.  We'll use the first and last 25% of the data
+	
+	npts = len(int_avg)
+	
+	l_idx = int(npts*0.25)
+	u_idx = int(npts*0.75)
+	
+	rms_chunk = np.concatenate((int_avg[2:l_idx],int_avg[u_idx:-2]),axis=None)
+	
+	int_avg /= get_rms(rms_chunk)	
 
 	#Plotting!!!!
 
 	plt.ion()
+	
+	#set some defaults
+	
+	fontparams = {'size':labels_size, 'family':'sans-serif','sans-serif':['Helvetica']}
+	
+	plt.rc('font',**fontparams)
+	plt.rc('mathtext', fontset='stixsans')
 	
 	#Plot the chunks
 	
@@ -3936,7 +3950,9 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	SNR = max(int_avg)	
 	min_val = min(int_avg)	
 	
-	fig = plt.figure()
+	plt.close(fig='stack')	
+	
+	fig = plt.figure(num='stack',figsize=figsize)
 	ax_s = fig.add_subplot(111)
 
 	minorLocator = AutoMinorLocator(5)
@@ -3949,7 +3965,11 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	ax_s.get_xaxis().get_major_formatter().set_scientific(False) #Don't let the x-axis go into scientific notation
 	ax_s.get_xaxis().get_major_formatter().set_useOffset(False)
 	
-	if SNR < 10:
+	if ylims != None:
+	
+		ax_s.set_ylim([ylims[0],ylims[1]])
+	
+	elif SNR < 10:
 	
 		ax_s.set_ylim([min_val*1.1,10])
 	
@@ -3957,17 +3977,92 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	
 		ax_s.set_ylim([-0.1*SNR,1.1*SNR])
 	
-	ax_s.annotate('{} Lines Stacked\n{} Lines Rejected\nSNR: {:.1f}' .format(nlines,nflags,SNR), xy=(0.1,0.8), xycoords='axes fraction',label='legend')
+	if line_stats is True:
+	
+		ax_s.annotate('{} Lines Stacked\n{} Lines Rejected\nSNR: {:.1f}' .format(nlines,nflags,SNR), xy=(0.1,0.8), xycoords='axes fraction',label='legend')
+		
+	if plotlabel != None:
+	
+		align_arg = {'ha' : 'right'}
+	
+		ax_s.annotate(plotlabel, xy=(0.95,0.85), xycoords='axes fraction', color='black', **align_arg)					
 
+	ax_s.plot(velocity_avg,int_avg,color='black',label='stacked',zorder=5,linewidth=thick,drawstyle='steps')
 	
-	ax_s.plot(velocity_avg,int_avg,color='black',label='stacked',zorder=0)
+	#add some minor ticks
 	
-	plt.show()
+	ax_s.minorticks_on()
+	
+	ax_s.tick_params(axis='x', which='both', direction='in')
+	ax_s.tick_params(axis='y', which='both', direction='in')
+	
+	#make sure ticks are on both mirror axes
+	
+	ax_s.yaxis.set_ticks_position('both')
+	ax_s.xaxis.set_ticks_position('both')
+	
+	#load into globals
 	
 	global vel_stacked,int_stacked
 	
 	vel_stacked = np.copy(velocity_avg)
 	int_stacked = np.copy(int_avg)
+	
+	#deal with calculating integrated sigmas now.  If we aren't going to do it, we're just done.  clean up and return
+	
+	if calc_sigma is False:
+	
+		plt.show()
+		
+		if pdf is not False:
+	
+			plt.savefig(pdf,format='pdf',transparent=True,bbox_inches='tight')
+	
+		return
+		
+	#Otherwise, we find the indices for the given velocity range.  Ranges are specified in the calc_sigma = [0,1,2,3], where 0 and 1 are the lower and upper limits to the line you want to integrate, and 2 and 3 are the lower and upper limits for the region the noise is taken from.
+	
+	line_l_idx = find_nearest(velocity_avg,calc_sigma[0])
+	line_u_idx = find_nearest(velocity_avg,calc_sigma[1])
+	
+	noise_l_idx = find_nearest(velocity_avg,calc_sigma[2])
+	noise_u_idx = find_nearest(velocity_avg,calc_sigma[3])
+	
+	#get sigma from the noise
+	
+	sigma = get_rms(int_avg[noise_l_idx:noise_u_idx])
+	
+	#calculate the snr
+			
+	snr = np.sum(int_avg[line_l_idx:line_u_idx])/(sigma*np.sqrt(len(int_avg[line_l_idx:line_u_idx])))
+	
+	#if we aren't adding this to the graph, print the result
+	
+	if label_sigma is False:
+	
+		print('The SNR of the line integrated from {} - {} km/s is {} sigma.' .format(calc_sigma[0],calc_sigma[1],snr))
+		
+	#if we are labeling it, then do that	
+		
+	if label_sigma is True:
+	
+		align_arg = {'ha' : 'right'}
+	
+		ax_s.annotate('Int. SNR: {:.1f}$\sigma$' .format(snr), xy=(0.95,0.75), xycoords='axes fraction', color='black', **align_arg)	
+	
+	#if we're plotting the range we integrated over, do that	
+		
+	if plot_sigma is True:
+	
+		plt.axvspan(calc_sigma[0], calc_sigma[1], alpha=0.05, color='blue',zorder=0)
+		plt.axvline(x=calc_sigma[0],alpha=0.2,color='blue',zorder=0)
+		plt.axvline(x=calc_sigma[1],alpha=0.2,color='blue',zorder=0)				
+	
+	plt.show()
+	
+	if pdf is not False:
+	
+		plt.savefig(pdf,format='pdf',transparent=True,bbox_inches='tight')	
 	
 	return
 
