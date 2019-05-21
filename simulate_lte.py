@@ -5287,7 +5287,7 @@ class ObsChunk(object):
 		
 class PostagePlot(object):
 
-	def __init__(self,lines,nwidths=40,ylims=None,velocity=False,pdf=False,obs=True,sim=True,nrows=None,ncols=None,obs_color='Black',sim_color='Red',obs_draw='steps',sim_draw='steps',title=None,GHz=False,xticks=3,yticks=3,xlabel=None,ylabel=None,milli=False,vlsr=vlsr,v_res=None,figsize=None,labels_size=18,lower_left_only=False):
+	def __init__(self,lines,nwidths=40,ylims=None,velocity=False,pdf=False,obs=True,sim=True,nrows=None,ncols=None,obs_color='Black',sim_color='Red',obs_draw='steps',sim_draw='steps',title=None,GHz=False,xticks=3,yticks=3,xlabel=None,ylabel=None,milli=False,vlsr=vlsr,v_res=None,figsize=None,labels_size=18,lower_left_only=False,obs_thick=1.0,sim_thick=1.0):
 	
 		self.lines = lines
 		self.nwidths = nwidths
@@ -5314,6 +5314,8 @@ class PostagePlot(object):
 		self.figsize = figsize
 		self.labels_size = labels_size
 		self.lower_left_only = lower_left_only
+		self.obs_thick = obs_thick
+		self.sim_thick = sim_thick
 				
 		return
 		
