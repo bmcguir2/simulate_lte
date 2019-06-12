@@ -89,6 +89,7 @@ from matplotlib.ticker import AutoMinorLocator
 import matplotlib.pyplot as plt
 import matplotlib
 import matplotlib.ticker as ticker
+from matplotlib.ticker import FormatStrFormatter
 import itertools
 from datetime import datetime
 from scipy.optimize import curve_fit
@@ -5218,6 +5219,373 @@ def make_postage_plot(PP):
 
 	return
 
+#makes a set of plots covering a specified total range in frequency space.
+
+def make_range_plot(RP):
+
+	#close the old figure if there is one
+	
+	plt.close(fig='Range Plot')
+	
+	#initialize a figure
+	
+	plt.ion()
+	
+	#if the user specified a size, use that
+	
+	if RP.figsize != None:
+	
+		figsize = RP.figsize
+		
+	#otherwise default to a 3:2 ratio	
+		
+	else:
+	
+		figsize = (12,8)
+	
+	fig = plt.figure(num='Range Plot',figsize=figsize)	
+	
+	#set some defaults
+	
+	fontparams = {'size':RP.labels_size, 'family':'sans-serif','sans-serif':['Helvetica']}
+	
+	plt.rc('font',**fontparams)
+	plt.rc('mathtext', fontset='stixsans')
+	
+	#get the number of figures total.  We divide the total range covered by the range of each chunk, then round up to the nearest integer.
+	
+	nfigs = int(np.ceil(np.abs(RP.full_range[1]-RP.full_range[0])/RP.chunk_range))
+
+	#figure out how many rows and columns we will have to make the grid.  Multistep logic.
+	
+	#if the user specified both, we use those and move on
+	
+	if RP.nrows != None and RP.ncols != None:
+	
+		nrows = PP.nrows
+		ncols = PP.ncols
+		
+	#if only nrows is given...	
+		
+	elif RP.nrows != None:
+	
+		nrows = RP.nrows
+		
+		#get ncols, rounding up
+		
+		ncols = RP.ceil(nfits/nrows)
+		
+	#if only ncols is given...
+	
+	elif RP.ncols != None:
+	
+		ncols = RP.ncols
+		
+		#get nrows, rounding up
+		
+		nrows = np.ceil(nfits/nrows)
+	
+	#Last, if the user has not specified either, we just set ncols to 1 and move on.
+	
+	else:
+	
+		nrows = nfigs
+		ncols = 1
+					
+	#but we warn the users if they don't have enough!
+	
+	if nrows*ncols < nfigs:
+	
+		print('CRITICAL ERROR: The number of rows and columns you specified is not enough to make all the stamps you specified.\n')
+		print('You asked for a {}x{} grid, which is {} stamps, but there are {} stamps given.  Cannot continue.' .format(nrows,ncols,nfigs))
+		
+		return	
+		
+	#make a gridspec for that size and tighten it up
+	
+	gs = gridspec.GridSpec(nrows,ncols)
+	
+	gs.update(hspace=0.2)
+	gs.update(wspace=0.1)	
+	
+	#make subplots to add, using x as the dictionary key, and we'll make sure to index that the same as the figs list
+	
+	gs_dict = {}
+	
+	x = 0
+	
+	while x < nfigs:
+	
+		for y in range(nrows):
+		
+			for z in range(ncols):
+			
+				gs_dict[x] = plt.subplot(gs[y,z])
+				
+				x += 1	
+				
+	#get a handle on the number of subplots
+	
+	nplots = nrows*ncols	
+	
+	#now loop through them, get the simulations we're working with, and plot them up
+	
+	for x in range(nplots):
+	
+		#get the current axis (cax) we're working with
+	
+		cax = gs_dict[x]
+		
+		#if y limits are set, then we use those
+		
+		if RP.ylims != None:
+		
+			cax.set_ylim(RP.ylims[0],RP.ylims[1])
+			
+		#now we set the x limits.  First the lower limit, which is the lower of the tuple from the full_range, plus the chunk_range if we've moved up past the first (x=0).
+		
+		plt_ll = RP.full_range[0] + RP.chunk_range*x	
+		
+		#now the upper limit.
+		
+		plt_ul = plt_ll + RP.chunk_range		
+		
+		#now set those in
+		
+		cax.set_xlim(plt_ll,plt_ul)
+		
+		#ok, now need to chunk out the data we're working with.  Start with the observations.
+		
+		if RP.obs is True:
+			
+			#we need to be more careful about our limits here, in case the upper end of full_range doesn't extend the full width of the final subplot
+			
+			#lower limit should always be fine
+			
+			ll = plt_ll
+			
+			#set the upper limit, but check if it's above the specified full_range, and if it is, bring it back down
+			
+			if plt_ul > RP.full_range[1]:
+			
+				ul = RP.full_range[1]
+				
+			else:
+			
+				ul = plt_ul
+			
+			l_idx = find_nearest(freq_obs,ll)
+			u_idx = find_nearest(freq_obs,ul)
+			
+			#chunk everything out based on that
+			
+			freq_obs_tmp = np.copy(freq_obs[l_idx:u_idx])
+			int_obs_tmp = np.copy(int_obs[l_idx:u_idx])	
+						
+			#dealing with alternative plotting and then add everything to the plot, using specified values
+			
+			if RP.GHz is True:
+		
+				freq_obs_tmp *= 1000
+				
+			if RP.milli is True:
+			
+				int_obs_tmp *= 1000	
+
+			cax.plot(freq_obs_tmp,int_obs_tmp,color=RP.obs_color,drawstyle=RP.obs_draw,zorder=1,linewidth=RP.obs_thick)	
+			
+		#Next we loop through all the simulations. If there aren't any, then we just keep going.  We'll set up an iteration index so we can reference the list of colors
+		
+		i = 0
+		
+		if len(RP.sims) != 0:
+		
+			#loop through all the simulations
+			
+			for z in RP.sims:
+			
+				#check if this is the current simulation and if so, proceed accordingly
+				
+				if z == 'current':
+				
+					#find the closest values in the simulation for these
+			
+					l_idx = find_nearest(freq_sim,ll)
+					u_idx = find_nearest(freq_sim,ul)
+			
+					#chunk everything out based on that
+			
+					freq_sim_tmp = np.copy(freq_sim[l_idx:u_idx])
+					int_sim_tmp = np.copy(int_sim[l_idx:u_idx])
+					
+				#check if it's the summed simulation
+				
+				elif z == 'sum':
+					
+					#find the closest values in the simulation for these
+			
+					l_idx = find_nearest(freq_sum,ll)
+					u_idx = find_nearest(freq_sum,ul)
+			
+					#chunk everything out based on that
+			
+					freq_sim_tmp = np.copy(freq_sum[l_idx:u_idx])
+					int_sim_tmp = np.copy(int_sum[l_idx:u_idx])				
+				
+					
+				#otherwise we have to dig it out of the archive, and we'll first check if it is even in there, continuing if not
+				
+				elif z not in sim:
+				
+					print("WARNING: There is no simulation labeled '{}' stored in memory.  Skipping." .format(x))
+					
+					continue
+				
+				else:
+			
+					#find the closest values in the simulation for these
+			
+					l_idx = find_nearest(sim[z].freq_sim,ll)
+					u_idx = find_nearest(sim[z].freq_sim,ul)
+			
+					#chunk everything out based on that
+			
+					freq_sim_tmp = np.copy(sim[z].freq_sim[l_idx:u_idx])
+					int_sim_tmp = np.copy(sim[z].int_sim[l_idx:u_idx])	
+		
+				#dealing with alternative plotting and then add everything to the plot, using specified values
+			
+				if RP.GHz is True:
+		
+					freq_sim_tmp *= 1000
+				
+				if RP.milli is True:
+			
+					int_sim_tmp *= 1000
+				
+				#plot it!
+				
+				zorder = i+3
+				
+				if z == 'sum':
+				
+					zorder = 2
+			
+				cax.plot(freq_sim_tmp,int_sim_tmp,color=RP.sim_colors[i],drawstyle=RP.sim_draw,zorder=zorder,linewidth=RP.sim_thicks[i])
+			
+				i += 1
+			
+		#add a legend to the plot, we'll have to iterate through the molecules and colors.
+	
+		#first we define a white box for the label
+	
+		bbox_props = dict(boxstyle='square', fc='white', lw=0)
+		
+		#get an index so we can move things down and get colors
+		
+		j = 0
+	
+		for y in RP.labels:
+		
+			#if we are only labeling the top plot, only do this if x is 0.
+			
+			if RP.label_top_only is True:
+			
+				if x != 0:
+				
+					continue
+	
+			cax.annotate('{}' .format(y), xy=(0.02,(0.95-RP.labels_shift-.05*(j*RP.labels_spacing))), xycoords='axes fraction', color=RP.sim_colors[j], bbox = bbox_props,zorder=100+j)
+			
+			j += 1
+			
+		#set the number of x-ticks
+				
+		cax.locator_params(axis='x', tight=True, nbins=RP.xticks)
+			
+		#set the number of y-ticks		
+		
+		cax.locator_params(axis='y', tight=True, nbins=RP.yticks)
+			
+		#Don't let either axis go into scientific notation or have some sort of offset if we did things automagically above
+		
+		cax.get_xaxis().get_major_formatter().set_scientific(False)
+		cax.get_xaxis().get_major_formatter().set_useOffset(False)	
+		
+		#add some minor ticks
+		
+		cax.minorticks_on()
+		
+		cax.tick_params(axis='x', which='both', direction='in')
+		cax.tick_params(axis='y', which='both', direction='in')
+		
+		#make sure ticks are on both mirror axes
+		
+		cax.yaxis.set_ticks_position('both')
+		cax.xaxis.set_ticks_position('both')
+		
+		#ok, axis labeling
+		
+		if RP.GHz is True:
+		
+			xlabel = 'Frequency (GHz)'
+			
+		else:
+		
+			xlabel = 'Frequency (MHz)'
+		
+		if RP.label_bottom_only is True:
+		
+			cax = gs_dict[nfigs-1]
+			
+			cax.set_xlabel(xlabel)
+				
+		else:
+		
+			for x in gs_dict:
+			
+				cax = gs_dict[x]
+						
+				cax.set_xlabel(xlabel)
+				
+		#y-axis logic
+	
+		if RP.milli is True:
+	
+			if planck is True:
+		
+				cax.set_ylabel('mJy beam$^{-1}$')
+			
+			else:
+		
+				cax.set_ylabel('T$_{\mbox{A}}$* (mK)')
+			
+		else:
+	
+			if planck is True:
+		
+				cax.set_ylabel('Jy beam$^{-1}$')
+			
+			else:
+		
+				cax.set_ylabel('T$_{\mbox{A}}$* (K)')	
+			
+		cax.tick_params(direction='in',labelbottom=True,labelleft=True)	
+		
+	#set the title, if one exists
+	
+	if RP.title != None:
+	
+		plt.title(RP.title)		
+	
+	plt.show()					
+	
+	if RP.pdf is not False:
+	
+		plt.savefig(RP.pdf,format='pdf',transparent=True,bbox_inches='tight')
+
+	return		
+									
 
 #############################################################
 #						Custom Aliases	   					#
@@ -5591,6 +5959,41 @@ class PostageStamp(object):
 		self.cfreq = cfreq
 		self.label = label
 	
+		return
+
+class RangePlot(object):
+
+	def __init__(self,full_range,chunk_range,ylims=None,pdf=False,obs=True,sims=['current'],nrows=None,ncols=None,obs_color='Black',sim_colors=['Red'],obs_draw='steps',sim_draw='steps',title=None,GHz=False,xticks=3,yticks=3,xlabel=None,ylabel=None,milli=False,figsize=None,labels_size=18,label_bottom_only=False,obs_thick=1.0,sim_thicks=[1.0],labels=[],labels_spacing=1,labels_shift=0,label_top_only=True):
+	
+		self.full_range = full_range
+		self.chunk_range = chunk_range
+		self.ylims = ylims
+		self.pdf = pdf
+		self.obs = obs
+		self.sims = sims
+		self.nrows = nrows
+		self.ncols = ncols
+		self.obs_color = obs_color
+		self.sim_colors = sim_colors
+		self.obs_draw = obs_draw
+		self.sim_draw = sim_draw
+		self.title = title
+		self.GHz = GHz
+		self.xticks = xticks
+		self.yticks = yticks
+		self.xlabel = xlabel
+		self.ylabel = ylabel
+		self.milli = milli
+		self.figsize = figsize
+		self.labels_size = labels_size
+		self.label_bottom_only = label_bottom_only
+		self.obs_thick = obs_thick
+		self.sim_thicks = sim_thicks
+		self.labels = labels
+		self.labels_spacing = labels_spacing
+		self.labels_shift = labels_shift
+		self.label_top_only = label_top_only
+				
 		return
 			
 #############################################################
