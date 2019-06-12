@@ -1306,7 +1306,7 @@ def invert_beam(frequency,intensity,source_size,dish_size):
 	
 #run_sim runs the simulation.  It's a meta routine, so that we can update later
 
-def run_sim(freq,intensity,T,dV,C):
+def run_sim(freq,intensity,T,dV,C,tau_get=None):
 
 	'''
 	Runs a full simulation accounting for the currently-active T, dV, S, and vlsr values, as well as any thermal cutoff for optically-thick lines
@@ -1342,6 +1342,12 @@ def run_sim(freq,intensity,T,dV,C):
 # 	print('+++++++++++++++++++++\n')		
 
 	tau =tau_numerator/tau_denominator
+	
+	if tau_get is not None:
+	
+		idx = find_nearest(frequency,tau_get)
+		
+		print('The tau for the line at frequency {} is {}.' .format(frequency[idx],tau[idx]))
 	
 	tau_print = trim_array(tau,frequency,ll,ul)
 	
@@ -5585,7 +5591,12 @@ def make_range_plot(RP):
 		plt.savefig(RP.pdf,format='pdf',transparent=True,bbox_inches='tight')
 
 	return		
-									
+
+def get_brandon_tau(tau_freq):
+
+	run_sim(tmp_freq,intensity,T,dV,C,tau_get=tau_freq)
+	
+	return									
 
 #############################################################
 #						Custom Aliases	   					#
