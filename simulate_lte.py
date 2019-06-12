@@ -65,6 +65,7 @@
 # 6.25 - new partition functions for some molecules
 # 6.26 - adds velocity stack postage stamp plot functionality
 # 6.27 - adds ability to make postage-stamp plots
+# 6.28 - makes old restore files backwards compatible; adds additional postage functionality
 
 #############################################################
 #							Preamble						#
@@ -95,13 +96,14 @@ import peakutils
 import math
 import matplotlib.gridspec as gridspec
 from scipy.optimize import minimize
+import ast
 
 matplotlib.rc('text', usetex = True)
 matplotlib.rc('text.latex',preamble=r'\usepackage{cmbright}')
 
 
 
-version = 6.27
+version = 6.28
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -1649,7 +1651,7 @@ def make_plot():
 	Generates a plot of the currently-active molecular simulation, as well as any laboratory data or observations which are loaded.  This will *not* restore any overplots from a previously-closed plot.
 	'''
 
-	global fig,ax,line1,line2,freq_sim,intensity,int_sim
+	global fig,ax,line1,line2
 
 	plt.ion()	
 
@@ -1658,8 +1660,20 @@ def make_plot():
 
 	minorLocator = AutoMinorLocator(5)
 	plt.xlabel('Frequency (MHz)')
-	plt.ylabel('Intensity (K)')
-	plt.title(obs_name)
+	
+	if planck is False:
+	
+		plt.ylabel('Intensity (K)')
+		
+	else:
+	
+		plt.ylabel('Intensity (Jy/beam)')
+	
+	#make the title latex friendly:
+	
+	title_str = obs_name.replace('_','\_')
+	
+	plt.title(title_str)
 	plt.rcParams['axes.labelweight'] = 'bold'
 
 	plt.locator_params(nbins=4) #Use only 4 actual numbers on the x-axis
@@ -2207,7 +2221,7 @@ def save_results(x):
 		output.write('catalog_file:\t{}\n' .format(catalog_file))
 		output.write('thermal:\t{} K\n' .format(thermal))
 		output.write('GHz:\t{}\n' .format(GHz))
-		output.write('rms:\t{}\n' .format(rms))
+		output.write('rms:\t{}\n\n' .format(rms))
 		
 	
 		output.write('#### Stored Simulations ####\n\n')
@@ -2430,11 +2444,45 @@ def restore(x):
 		print('This is not the file you are looking for.')
 		return
 	
-	#check if the file that was read it is actually a savefile for viewspectrum.py
+	#check if the file that was read it is actually a savefile of the appropriate format...
+	
+	#flag for whether it's an old file
+	
+	old = False
 	
 	if restore_array[0].split()[0] != 'simulate_lte.py':
-		print('The file is not a simulate_lte.py save file, has been altered, or was created with an older version of the program.  In any case, I can\'t read it, sorry.')
-		return	
+		
+		#check if it was made with viewspectrum.py.  If it was, it's *probably* fine...
+	
+		if restore_array[0].split()[0] == 'viewspectrum.py':
+			print('WARNING: This file was made with a substantially older version of the program. An attempt will be made to read it and update it.  Please save it again with the new version of the program to ensure compatibility going forward.')
+		
+		#otherwise it's not a valid file...
+		
+		else:
+			print('The file is not a simulate_lte.py save file, has been altered, or was created with an incompatibly older version of the program.  In any case, I can\'t read it, sorry.')
+			return
+			
+		if float(restore_array[0].split()[2]) < 6.9:
+			
+			#set a flag that we don't have vib states, and warn the user
+			
+			old = True
+		
+			print('WARNING: This file was made with an older version of the program. An attempt will be made to read it and update it.  Please save it again with the new version of the program to ensure compatibility going forward.')
+			
+			#add a blank vibs line that it's looking for, as well as a blank line after that.
+			
+			restore_array.insert(14,'vibs:\tNone\n')
+			restore_array.insert(15,'\n')
+			
+			with open('bunk.txt', 'w') as output:
+			
+				for line in restore_array:
+				
+					output.write(line)
+		
+			
 		
 	#let's grab the date and time, so we can print some nice information to the terminal
 	
@@ -2473,18 +2521,84 @@ def restore(x):
 	
 		graph_array.append(restore_array[i])
 		
+	#we'll turn the active array into a dictionary, to further avoid conflicts with older versions.
+	
+	active_dict = {}
+	
+	for x in active_array:
+	
+		#if it's a blank line, move on:
+		
+		if x == '\n':
+		
+			continue
+	
+		key = x.split('\t')[0].strip(':')
+		value = x.split('\t')[1].strip().strip('\n')
+		
+		active_dict[key] = value
+		
+	#go through and clean all those values up.  Our dictionary has these keys: 
+	#'molecule'
+	#'obs'
+	#'T'
+	#'C'
+	#'dV'
+	#'VLSR'
+	#'ll'
+	#'ul'
+	#'CT'
+	#'vibs'
+	#'gauss'
+	#'catalog_file'
+	#'thermal'
+	#'GHz'
+	#'rms'
+	
+	#set the Temperature
+	
+	active_dict['T'] = float(active_dict['T'].split()[0])
+	
+	#set the Column
+	
+	active_dict['C'] = float(active_dict['C'])
+	
+	#set the dV
+	
+	active_dict['dV'] = float(active_dict['dV'].split()[0])
+	
+	#set the VLSR
+	
+	active_dict['VLSR'] = float(active_dict['VLSR'].split()[0])	
+	
+	#set the CT
+	
+	active_dict['CT'] = float(active_dict['CT'].split()[0])
+	
+	#thermal is super deprecated and isn't used anymore
+	
+	#set the rms. if there isn't one, make one
+	
+	if 'rms' not in active_dict:
+	
+		active_dict['rms'] = float('-inf')
+		print('WARNING: The restore file does not have an rms value in it.  It was probably generated with a previous version of the program. The restore can proceed, but it is recommended that you re-save the restore file with the latest version of the program.')
+	
+	else:
+	
+		active_dict['rms'] = float(active_dict['rms'])	
+		
+	
+		
 	#just to be safe, let's set the upper limits, lower limits, gaussian toggles, thermal values, and GHz flag now.
 	
-	#what is the rms level set at?
+	#what is the rms level set at? 
 	
-	try:
-		rms = float(active_array[14].split('\t')[1].strip('\n'))
-	except IndexError:
-		print('The restore file does not have an rms value in it.  It was probably generated with a previous version of the program. The restore can proceed, but it is recommended that you re-save the restore file with the latest version of the program.')
+	rms = active_dict['rms']
 	
 	#are we simulating Gaussians?
 	
-	if active_array[10].split('\t')[1].strip('\n') == 'True':
+	if 'True' in active_dict['gauss']:
 		gauss = True
 	else:
 		gauss = False
@@ -2494,7 +2608,7 @@ def restore(x):
 		
 	#are observations read in in GHz?
 	
-	if active_array[13].split('\t')[1].strip('\n') == 'True':
+	if 'True' in active_dict['GHz']:
 		GHz = True
 	else:
 		GHz = False	
@@ -2502,28 +2616,28 @@ def restore(x):
 	#set the lower limit.  requires some logical to differentiate between a single value and a list	
 		
 	try:
-		ll = float(active_array[6].split('\t')[1].strip(' MHz\n'))
+		ll = float(active_dict['ll'].split()[0].strip(' MHz\n'))
 	except ValueError:
 		ll = []
-		tmp_str = active_array[6].split('\t')[1].strip(' MHz\n').strip(']').strip('[').split(',')
+		tmp_str = active_dict['ll'].split(']')[0].strip(' MHz\n').strip(']').strip('[').split(',')
 		for line in range(len(tmp_str)):
 			ll.append(float(tmp_str[line]))
 			
 	#set the upper limit.  requires some logical to differentiate between a single value and a list		
 	
 	try:	
-		ul = float(active_array[7].split('\t')[1].strip(' MHz\n'))
+		ul = float(active_dict['ul'].split()[0].strip(' MHz\n'))
 	except ValueError:
 		ul = []
-		tmp_str = active_array[7].split('\t')[1].strip(' MHz\n').strip(']').strip('[').split(',')
+		tmp_str = active_dict['ul'].split(']')[0].strip(' MHz\n').strip(']').strip('[').split(',')
 		for line in range(len(tmp_str)):
 			ul.append(float(tmp_str[line]))
 	
-	
-	thermal = float(active_array[12].split('\t')[1].strip(' K\n'))
+	#not using thermal anymore
+	#thermal = float(active_array[12].split('\t')[1].strip(' K\n'))
 	
 	try:
-		obs = active_array[1].split('\t')[1].strip('\n')
+		obs = active_dict['obs'].strip('\n')
 		read_obs(obs)
 	except:
 		res = 0.1
@@ -2533,6 +2647,16 @@ def restore(x):
 	
 	for i in range(len(stored_array)):
 	
+		#if this is an old file, we have to insert a vibs string
+		
+		if old is True:
+		
+			tmp_array = stored_array[i].split('\t')
+			
+			tmp_array.insert(6,'None')
+			
+			stored_array[i] = '\t'.join([str(x) for x in tmp_array])	
+	
 		name = stored_array[i].split('\t')[0].strip('\n')
 		T = float(stored_array[i].split('\t')[1])
 		C = float(stored_array[i].split('\t')[2])
@@ -2540,6 +2664,8 @@ def restore(x):
 		vlsr = float(stored_array[i].split('\t')[4])
 		CT = float(stored_array[i].split('\t')[5])
 		
+
+			
 		if stored_array[i].split('\t')[6] == 'None':
 		
 			vibs = None
@@ -2578,29 +2704,29 @@ def restore(x):
 	#Now we move on to loading in the currently-active molecule
 	
 	try:
-		obs = active_array[1].split('\t')[1].strip('\n')
+		obs = active_dict['obs'].strip('\n')
 		read_obs(obs)
 	except:
 		pass
-	name = active_array[0].split('\t')[1].strip('\n')
+	name = active_dict['molecule'].strip('\n')
 
 	try:
 		recall(name)
 	except KeyError:
-		catalog_file = active_array[11].split('\t')[1].strip('\n')
-		T = float(active_array[2].split('\t')[1].strip(' K\n'))
-		C = float(active_array[3].split('\t')[1].strip('\n'))
-		dV = float(active_array[4].split('\t')[1].strip(' km/s\n'))
-		vlsr = float(active_array[5].split('\t')[1].strip(' km/s\n'))
-		CT = float(active_array[8].split('\t')[1].strip(' K\n'))
+		catalog_file = active_dict['catalog_file'].strip('\n')
+		T = active_dict['T']
+		C = active_dict['C']
+		dV = active_dict['dV']
+		vlsr = active_dict['VLSR']
+		CT = active_dict['CT']
 		
-		if active_array[9].split('\t')[1] == 'None':
+		if active_dict['vibs'] == 'None':
 		
 			vibs = None
 			
 		else:
 		
-			tmp_str = active_array[9].split('\t')[1]
+			tmp_str = active_dict['vibs'].split('\t')[1]
 			
 			tmp_str = tmp_str.strip('[')
 			tmp_str = tmp_str.strip(']').split(',')
@@ -2613,8 +2739,8 @@ def restore(x):
 			
 				vibs.append(float(x))
 		
-		current = active_array[0].split('\t')[1].strip('\n')
-		name = active_array[0].split('\t')[1]
+		current = active_dict['molecule'].strip('\n')
+		name = active_dict['molecule'].split('/')[-1].strip('\n')
 		
 		first_run = True
 		load_mol(catalog_file,vib_states=vibs)
@@ -5168,17 +5294,17 @@ def load_mm1():
 	autoset_limits()
 	
 
-#load_tmc1() loads the default MM1 pointing position extraction and parameters.
+#load_tmc1() loads GOTHAM.
 
 def load_tmc1():
 
-	global T,dV,vlsr,source_size,res
+	global T,dV,vlsr,source_size,res,tbg_type
 
 	read_obs('/Users/Brett/Dropbox/TMC1/tmc_all_gbt.txt')
 	
 	T = 8
 
-	dV = 0.3
+	dV = 0.15
 
 	vlsr = 5.82
 	
@@ -5187,6 +5313,48 @@ def load_tmc1():
 	autoset_limits()
 	
 	res *= 2
+	
+	tbg_type = 'constant'
+	
+#load_primos_cold() loads PRIMOS for absorption
+
+def load_primos_cold():
+
+	global T,dV,vlsr,source_size,res,tbg_type
+
+	read_obs('/Users/Brett/Dropbox/PRIMOS_DATA/blanked_primos_old.txt')
+	
+	T = 5
+
+	dV = 9
+
+	vlsr = 0
+	
+	source_size = 20
+
+	autoset_limits()
+	
+	tbg_type = 'sgrb2'	
+	
+#load_primos_hot() loads PRIMOS for compact emission
+
+def load_primos_hot():
+
+	global T,dV,vlsr,source_size,res,tbg_type
+
+	read_obs('/Users/Brett/Dropbox/PRIMOS_DATA/blanked_primos_old.txt')
+	
+	T = 80
+
+	dV = 9
+
+	vlsr = 0
+	
+	source_size = 5
+
+	autoset_limits()
+	
+	tbg_type = 'sgrb2'		
 	
 #load_tmc1() loads the default MM1 pointing position extraction and parameters.
 
@@ -5259,6 +5427,8 @@ def load_asai(source):
 		T = 19
 
 		dV = 3.0
+		
+		source_size = 0.3
 		
 	elif source.lower() == 'tmc1':
 	
