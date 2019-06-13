@@ -5593,6 +5593,10 @@ def make_range_plot(RP):
 	return		
 
 def get_brandon_tau(tau_freq):
+	
+	tmp_freq = np.copy(frequency)
+	
+	tmp_freq += (-vlsr)*tmp_freq/ckm
 
 	run_sim(tmp_freq,intensity,T,dV,C,tau_get=tau_freq)
 	
