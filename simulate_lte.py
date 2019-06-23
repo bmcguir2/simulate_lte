@@ -66,6 +66,7 @@
 # 6.26 - adds velocity stack postage stamp plot functionality
 # 6.27 - adds ability to make postage-stamp plots
 # 6.28 - makes old restore files backwards compatible; adds additional postage functionality
+# 6.29 - adds harmonic progression plotting functionality
 
 #############################################################
 #							Preamble						#
@@ -104,7 +105,7 @@ matplotlib.rc('text.latex',preamble=r'\usepackage{cmbright}')
 
 
 
-version = 6.28
+version = 6.29
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -5592,6 +5593,285 @@ def make_range_plot(RP):
 
 	return		
 
+#makes a set of harmonic plots given a list of central frequencies and a range of frequency on either side of those frequencies.
+
+def make_harmonic_plot(HP):
+
+	#close the old figure if there is one
+	
+	plt.close(fig='Harmonic Plot')
+	
+	#initialize a figure
+	
+	plt.ion()
+	
+	#if the user specified a size, use that
+	
+	if HP.figsize != None:
+	
+		figsize = HP.figsize
+		
+	#otherwise default to a 3:2 ratio	
+		
+	else:
+	
+		figsize = (12,8)
+	
+	fig = plt.figure(num='Harmonic Plot',figsize=figsize)	
+	
+	#set some defaults
+	
+	fontparams = {'size':HP.labels_size, 'family':'sans-serif','sans-serif':['Helvetica']}
+	
+	plt.rc('font',**fontparams)
+	plt.rc('mathtext', fontset='stixsans')
+	
+	#get the number of sub-figures total, which is just the number of center frequencies we'll use.
+	
+	nfigs = len(HP.cfreqs)
+	nrows = nfigs
+	ncols = 1
+	
+	#make a gridspec for that size and tighten it up
+	
+	gs = gridspec.GridSpec(nrows,ncols)
+	
+	gs.update(hspace=0.2)
+	gs.update(wspace=0.1)	
+	
+	#make subplots to add, using x as the dictionary key, and we'll make sure to index that the same as the figs list
+	
+	gs_dict = {}
+	
+	for x in range(nfigs):
+	
+		gs_dict[x] = plt.subplot(gs[x,0])
+		
+	#ok, now just loop through and plot things up appropriately.
+	
+	for x in range(nfigs):
+	
+		#get the current axis (cax) we're working with
+	
+		cax = gs_dict[x]
+		
+		#if y limits are set, then we use those
+		
+		if HP.ylims != None:
+		
+			cax.set_ylim(HP.ylims[0],HP.ylims[1])
+			
+		#now we set the xlimits
+		
+		plt_ll = HP.cfreqs[x] - HP.chunk_range
+		plt_ul = HP.cfreqs[x] + HP.chunk_range
+		
+		cax.set_xlim(-HP.chunk_range,HP.chunk_range)
+
+		#ok, now need to chunk out the data we're working with.  Start with the observations.
+		
+		if HP.obs is True:
+			
+			l_idx = find_nearest(freq_obs,plt_ll)
+			u_idx = find_nearest(freq_obs,plt_ul)
+			
+			#chunk everything out based on that
+			
+			freq_obs_tmp = np.copy(freq_obs[l_idx:u_idx])
+			int_obs_tmp = np.copy(int_obs[l_idx:u_idx])	
+						
+			#dealing with alternative plotting and then add everything to the plot, using specified values
+			
+			if HP.GHz is True:
+		
+				freq_obs_tmp *= 1000
+				
+			if HP.milli is True:
+			
+				int_obs_tmp *= 1000	
+				
+			#now, regrid everything so that the cfreq = 0
+			
+			freq_obs_tmp -= HP.cfreqs[x]	
+
+			cax.plot(freq_obs_tmp,int_obs_tmp,color=HP.obs_color,drawstyle=HP.obs_draw,zorder=1,linewidth=HP.obs_thick)	
+			
+		#Next we loop through all the simulations. If there aren't any, then we just keep going.  We'll set up an iteration index so we can reference the list of colors
+		
+		i = 0
+		
+		if len(HP.sims) != 0:
+		
+			#loop through all the simulations
+			
+			for z in HP.sims:
+			
+				#check if this is the current simulation and if so, proceed accordingly
+				
+				if z == 'current':
+				
+					#find the closest values in the simulation for these
+			
+					l_idx = find_nearest(freq_sim,plt_ll)
+					u_idx = find_nearest(freq_sim,plt_ul)
+			
+					#chunk everything out based on that
+			
+					freq_sim_tmp = np.copy(freq_sim[l_idx:u_idx])
+					int_sim_tmp = np.copy(int_sim[l_idx:u_idx])
+					
+				#check if it's the summed simulation
+				
+				elif z == 'sum':
+					
+					#find the closest values in the simulation for these
+			
+					l_idx = find_nearest(freq_sum,plt_ll)
+					u_idx = find_nearest(freq_sum,plt_ul)
+			
+					#chunk everything out based on that
+			
+					freq_sim_tmp = np.copy(freq_sum[l_idx:u_idx])
+					int_sim_tmp = np.copy(int_sum[l_idx:u_idx])				
+				
+					
+				#otherwise we have to dig it out of the archive, and we'll first check if it is even in there, continuing if not
+				
+				elif z not in sim:
+				
+					print("WARNING: There is no simulation labeled '{}' stored in memory.  Skipping." .format(x))
+					
+					continue
+				
+				else:
+			
+					#find the closest values in the simulation for these
+			
+					l_idx = find_nearest(sim[z].freq_sim,plt_ll)
+					u_idx = find_nearest(sim[z].freq_sim,plt_ul)
+			
+					#chunk everything out based on that
+			
+					freq_sim_tmp = np.copy(sim[z].freq_sim[l_idx:u_idx])
+					int_sim_tmp = np.copy(sim[z].int_sim[l_idx:u_idx])	
+		
+				#dealing with alternative plotting and then add everything to the plot, using specified values
+			
+				if HP.GHz is True:
+		
+					freq_sim_tmp *= 1000
+				
+				if HP.milli is True:
+			
+					int_sim_tmp *= 1000
+					
+				#now, regrid everything so that the cfreq = 0
+			
+				freq_sim_tmp -= HP.cfreqs[x]					
+				
+				#plot it!
+				
+				zorder = i+3
+				
+				if z == 'sum':
+				
+					zorder = 2
+			
+				cax.plot(freq_sim_tmp,int_sim_tmp,color=HP.sim_colors[i],drawstyle=HP.sim_draw,zorder=zorder,linewidth=HP.sim_thicks[i])
+			
+				i += 1
+						
+		#set the number of x-ticks
+				
+		cax.locator_params(axis='x', tight=True, nbins=HP.xticks)
+			
+		#set the number of y-ticks		
+		
+		cax.locator_params(axis='y', tight=True, nbins=HP.yticks)
+			
+		#Don't let either axis go into scientific notation or have some sort of offset if we did things automagically above
+		
+		cax.get_xaxis().get_major_formatter().set_scientific(False)
+		cax.get_xaxis().get_major_formatter().set_useOffset(False)	
+		
+		#add some minor ticks
+		
+		cax.minorticks_on()
+		
+		cax.tick_params(axis='x', which='both', direction='in')
+		cax.tick_params(axis='y', which='both', direction='in')
+		
+		#make sure ticks are on both mirror axes
+		
+		cax.yaxis.set_ticks_position('both')
+		cax.xaxis.set_ticks_position('both')	
+				
+		#y-axis logic
+		
+		if x == nfigs-1:
+	
+			if HP.milli is True:
+	
+				if planck is True:
+		
+					cax.set_ylabel('mJy beam$^{-1}$')
+			
+				else:
+		
+					cax.set_ylabel('T$_{\mbox{A}}$* (mK)')
+			
+			else:
+	
+				if planck is True:
+		
+					cax.set_ylabel('Jy beam$^{-1}$')
+			
+				else:
+		
+					cax.set_ylabel('T$_{\mbox{A}}$* (K)')	
+				
+		#set the bottom labels off unless we're on the last plot, we'll turn the bottom bottom ones on later.
+		
+		if x == nfigs-1:
+		
+			if HP.GHz is True:
+		
+				xlabel = 'Frequency (GHz)'
+			
+			else:
+		
+				xlabel = 'Delta Frequency (MHz)'
+				
+			cax.set_xlabel(xlabel)
+			
+			cax.tick_params(direction='in',labelbottom=True,labelleft=True)	
+			
+		else:
+		
+			cax.tick_params(direction='in',labelbottom=False,labelleft=True)
+	
+		#add a legend to the plot, we'll have to iterate through the molecules and colors.
+
+		#first we define a white box for the label
+
+		bbox_props = dict(boxstyle='square', fc='white', lw=0)
+
+		cax.annotate('{:.2f}' .format(HP.cfreqs[x]), xy=(1.,0.5), xycoords='axes fraction', bbox = bbox_props,zorder=100)
+		
+	#set the title, if one exists
+
+	if HP.title != None:
+
+		plt.title(HP.title)		
+
+	plt.show()					
+
+	if HP.pdf is not False:
+
+		plt.savefig(HP.pdf,format='pdf',transparent=True,bbox_inches='tight')
+
+	return				
+
 def get_brandon_tau(tau_freq):
 	
 	tmp_freq = np.copy(frequency)
@@ -6010,7 +6290,37 @@ class RangePlot(object):
 		self.label_top_only = label_top_only
 				
 		return
-			
+
+class HarmonicPlot(object):
+
+	def __init__(self,cfreqs,chunk_range,ylims=None,pdf=False,obs=True,sims=[],obs_color='Black',sim_colors=[],obs_draw='steps',sim_draw='steps',title=None,GHz=False,xticks=5,yticks=5,xlabel=None,ylabel=None,milli=False,figsize=None,labels_size=18,obs_thick=1.0,sim_thicks=[1.0]):
+	
+		self.cfreqs = cfreqs
+		self.chunk_range = chunk_range
+		self.ylims = ylims
+		self.pdf = pdf
+		self.obs = obs
+		self.sims = sims
+		self.obs_color = obs_color
+		self.sim_colors = sim_colors
+		self.obs_draw = obs_draw
+		self.sim_draw = sim_draw
+		self.title = title
+		self.GHz = GHz
+		self.xticks = xticks
+		self.yticks = yticks
+		self.xlabel = xlabel
+		self.ylabel = ylabel
+		self.milli = milli
+		self.figsize = figsize
+		self.labels_size = labels_size
+		self.obs_thick = obs_thick
+		self.sim_thicks = sim_thicks
+				
+		return	
+
+
+				
 #############################################################
 #							Run Program						#
 #############################################################
