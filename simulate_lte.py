@@ -67,6 +67,11 @@
 # 6.27 - adds ability to make postage-stamp plots
 # 6.28 - makes old restore files backwards compatible; adds additional postage functionality
 # 6.29 - adds harmonic progression plotting functionality
+# 6.30 - adds a sum_stored_thin() option for summing optically thin spectra, and adds ability for stacking to work on summed spectra
+# 6.31 - adds ability to plot errors on postage stamp plots
+# 6.32 - adds ability to add markers on range plots
+# 6.33 - updates flux simulation calculation; does not consider 'beam dilution' in these cases
+# 6.34 - adds numpy saving and loading for observations
 
 #############################################################
 #							Preamble						#
@@ -105,7 +110,7 @@ matplotlib.rc('text.latex',preamble=r'\usepackage{cmbright}')
 
 
 
-version = 6.29
+version = 6.34
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -829,7 +834,7 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 	elif 'hc7n' in catalog_file.lower() and 'hfs' in catalog_file.lower(): 
 	
 		Q = 3*36.94999*T + 3*0.1356045		
-	
+
 	else:
 	
 		nstates = elower.size #Determine the number of total states in the raw cat file
@@ -926,6 +931,14 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 		if 'h2cco' in catalog_file.lower() or 'ketene' in catalog_file.lower():
 		
 			Q *= 2
+			
+		if 'glycine' in catalog_file.lower() and 'hfs' not in catalog_file.lower():
+	
+			Q *= 3		
+			
+		if 'alanine' in catalog_file.lower() and 'hfs' not in catalog_file.lower():
+		
+			Q *= 3		
 			
 		#result = [Q,ustates] #can enable this function to check the number of states used in the calculation, but note that this will break calls to Q further down that don't go after element 0.
 		
@@ -1362,7 +1375,9 @@ def run_sim(freq,intensity,T,dV,C,tau_get=None):
 	
 	freq_tmp = trim_array(freq,frequency,ll,ul)
 	
-	int_temp = apply_beam(freq_tmp,int_temp,source_size,dish_size,synth_beam,interferometer)
+	if planck is False:
+	
+		int_temp = apply_beam(freq_tmp,int_temp,source_size,dish_size,synth_beam,interferometer)
 	
 	if gauss == True:
 
@@ -1764,62 +1779,79 @@ def obs_on():
 		print('There are no observations loaded into the program to turn on.  Load in obs with read_obs()')
 		return
 			
-#read_obs reads in observations or laboratory spectra and populates freq_obs and int_obs
+#read_obs reads in observations or laboratory spectra and populates freq_obs and int_obs.  Special logic for .npz files.
 
 def read_obs(x):
 
 	'''
-	reads in observations or laboratory spectra and populates freq_obs and int_obs.  will detect a standard .ispec header from casaviewer export, and will apply a GHz flag if necessary, as well as populating the coords variable with the coordinates from the header.
+	reads in observations or laboratory spectra and populates freq_obs and int_obs.  will detect a standard .ispec header from casaviewer export, and will apply a GHz flag if necessary, as well as populating the coords variable with the coordinates from the header.  Will detect a .npz file and act accordingly as well, but only if the keywords of the .npz file are freq_obs and int_obs
 	'''
 
-	global spec, coords, GHz, res, obs_name, draw_style
+	global spec, coords, GHz, res, obs_name, draw_style, freq_obs,int_obs
 
 	spec = x
 
-	obs = read_cat(x)
+	#check if this is an *.npz file and if so, load it up and slot it in
 	
-	#check to see if these are casa spectra
+	if x[-3:] == 'npz':
 	
-	if obs[0].split(':')[0] == '#title':
+		#load the file into a temporary data variable
 	
-		i = 0
-		j = 0
-	
-		while i == 0:
+		data = np.load(x)
 		
-			if obs[j].split(':')[0] == '#xLabel':
+		#the keywords must be freq_obs and int_obs, and we can then slot them in.
 		
-				if obs[j].split('[')[1].strip(']\n') == 'GHz':
-				
-					GHz = True
-				
-			if obs[j].split(':')[0] == '#region (world)':
-			
-				coords = obs[j].split(':')[1].strip('\n')
-			
-			if obs[j][0] != '#':
-			
-				i = 1
-				
-			j += 1		
 		
-		del obs[:j+1]
-	
-	global freq_obs,int_obs
+		
+		freq_obs = data['freq_obs']
+		int_obs = data['int_obs']
 
-	freq_obs = []
-	int_obs = []
+	else:
 
-	for x in range(len(obs)):
+		obs = read_cat(x)
+	
+		#check to see if these are casa spectra
+	
+		if obs[0].split(':')[0] == '#title':
+	
+			i = 0
+			j = 0
+	
+			while i == 0:
+		
+				if obs[j].split(':')[0] == '#xLabel':
+		
+					if obs[j].split('[')[1].strip(']\n') == 'GHz':
+				
+						GHz = True
+				
+				if obs[j].split(':')[0] == '#region (world)':
+			
+					coords = obs[j].split(':')[1].strip('\n')
+			
+				if obs[j][0] != '#':
+			
+					i = 1
+				
+				j += 1		
+		
+			del obs[:j+1]
+	
+		#global freq_obs,int_obs
 
-		freq_obs.append(float(obs[x].split()[0]))
-		int_obs.append(float(obs[x].split()[1].strip('\n')))
+		freq_obs = []
+		int_obs = []
+
+		for x in range(len(obs)):
+
+			freq_obs.append(float(obs[x].split()[0]))
+			int_obs.append(float(obs[x].split()[1].strip('\n')))
 	
-	freq_tmp = list(freq_obs)
-	int_tmp = list(int_obs)
+		freq_tmp = list(freq_obs)
+		int_tmp = list(int_obs)
 	
-	freq_obs = [freq_tmp for freq_tmp,int_tmp in sorted(zip(freq_tmp,int_tmp))]
-	int_obs = [int_tmp for freq_tmp,int_tmp in sorted(zip(freq_tmp,int_tmp))]	
+		freq_obs = [freq_tmp for freq_tmp,int_tmp in sorted(zip(freq_tmp,int_tmp))]
+		int_obs = [int_tmp for freq_tmp,int_tmp in sorted(zip(freq_tmp,int_tmp))]	
 		
 	if GHz == True:
 	
@@ -2269,6 +2301,66 @@ def status():
 	print('gauss: \t {}' .format(gauss))
 	print('thermal: \t {}' .format(thermal))
 		
+#sum_stored creates a combined spectrum of all stored molecule simulations and stores it in freq_sum and int_sum.  This might take a while.  It's done from scratch because the frequency axes in freq_sim stored for each molecule will not necessarily be the same, so co-adding is difficult without re-gridding, which well, maybe later.	
+
+def sum_stored_thin():
+
+	'''
+	Creates a combined spectrum of all stored molecule simulations and stores it in freq_sum and int_sum.  This might take a while.
+	'''
+	
+	global freq_sum,int_sum
+	
+	#first, we need to be intelligent about how we set the limits for the sum - they should cover the entirety of the summed frequency simulations, but not more.  We can do that by adding all those together and running an find_limits function on them.
+	
+	total_sim_freqs = []
+	
+	#loop through all the stored simulations and add their frequency axes into total_sim_freqs
+	
+	for x in sim:
+	
+		total_sim_freqs.extend(sim[x].freq_sim)
+	
+		#total_sim_freqs = np.concatenate((total_sim_freqs,sim[x].freq_sim),axis=None)
+		
+	#make that a numpy array
+	
+	total_sim_freqs = np.asarray(total_sim_freqs)
+		
+	#sort that
+	
+	total_sim_freqs = np.sort(total_sim_freqs)
+	
+	#now run a limit finder
+	
+	sum_ll,sum_ul = find_limits(total_sim_freqs)
+	
+	#now we make a new frequency array running between these limits at spacing res
+	
+	freq_sum = []
+	
+	for x,y in zip(sum_ll,sum_ul):
+	
+		freq_chunk = np.arange(x,y,res)
+	
+		freq_sum = np.concatenate((freq_sum,freq_chunk),axis=None)
+		
+	freq_sum = np.sort(freq_sum)
+		
+	#now we make an intensity array
+	
+	int_sum = np.zeros_like(freq_sum)
+	
+	#loop through all the stored simulations, regrid them onto freq_sum, and add to int_sum
+	
+	for x in sim:
+	
+		int_chunk = np.interp(freq_sum,sim[x].freq_sim,sim[x].int_sim,left=np.nan,right=np.nan)
+		
+		int_sum += int_chunk
+		
+	overplot_sum()
+
 #sum_stored creates a combined spectrum of all stored molecule simulations and stores it in freq_sum and int_sum.  This might take a while.  It's done from scratch because the frequency axes in freq_sim stored for each molecule will not necessarily be the same, so co-adding is difficult without re-gridding, which well, maybe later.	
 
 def sum_stored():
@@ -2838,6 +2930,43 @@ def quiet():
 	elif quietflag == True:
 	
 		quietflag = False
+
+#find_limits() automatically finds the upper and lower limits of the input array.
+
+def find_limits(freq_arr,spacing_tolerance=100):
+	
+	if len(freq_arr) == 0:
+	
+		print('The input array has no data.')
+		
+		return
+		
+	#run through the data and try to find gaps
+	#first, calculate the average spacing of the datapoints
+	
+	spacing = abs(freq_arr[0]-freq_arr[10])/10
+	
+	#find all values where the next point is more than spacing_tolerance * spacing away
+	
+	#initialize a list to hold these, with the first point being in there automatically
+	
+	values = [freq_arr[0]]
+	
+	for x in range(len(freq_arr)-1):
+	
+		if abs(freq_arr[x+1] - freq_arr[x]) > spacing_tolerance*spacing:
+		
+			values.append(freq_arr[x])
+			values.append(freq_arr[x+1])
+			
+	#make sure the last point gets in there too
+	
+	values.append(freq_arr[-1])
+			
+	ll = values[0::2] 
+	ul = values[1::2]
+	
+	return ll,ul
 		
 #autoset_limits() automatically sets the upper and lower limits to 25 MHz above and below the lowest limits of the loaded spectra.
 
@@ -3669,6 +3798,10 @@ def find_sim_peaks(frequency,intensity,fwhm):
 		line_chan = int(fwhm_chan * 5)
 				
 		intensity_tmp = np.asarray(intensity)
+		
+		#replace nans with zeros
+		
+		intensity_tmp = np.nan_to_num(intensity_tmp)
 
 		peak_indices = peakutils.indexes(intensity_tmp,0,min_dist=int(fwhm_chan*.5))
 		
@@ -3735,7 +3868,7 @@ def find_nearest(array,value):
 	
 #velocity_stack does a velocity stacking analysis using the current ll and ul, and the current simulation, using lines that are at least 0.1 sigma or larger, with the brightest simulated line scaled to be 1 sigma.
 
-def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,plot_chunks=False,blank_lines=False,fix_y=False,line_stats=True,pdf=False,labels_size=12,figsize=(6,4),thick=1.0,plotlabel=None,ylims=None,calc_sigma=False,label_sigma=False,plot_sigma=False):
+def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,plot_chunks=False,blank_lines=False,fix_y=False,line_stats=True,pdf=False,labels_size=12,figsize=(6,4),thick=1.0,plotlabel=None,ylims=None,calc_sigma=False,label_sigma=False,plot_sigma=False,use_sum=False,sum_width_extend=3,plot_sim_chunks=False,plot_sum_range=False,plot_sim_stack=False):
 
 	if flag_lines is True and blank_lines is True:
 	
@@ -3744,14 +3877,45 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	freq_local = np.copy(freq_obs)
 	int_local = np.copy(int_obs)
 
-	#find the simulation indices where the peaks are
+	if use_sum is False:
 	
-	peak_indices = find_sim_peaks(freq_sim,int_sim,dV)
+		#find the simulation indices where the peaks are
 	
-	#find the frequencies and intensities corresponding to those peaks
+		peak_indices = find_sim_peaks(freq_sim,int_sim,dV)
+		
+		#find the frequencies and intensities corresponding to those peaks
 	
-	peak_freqs = freq_sim[peak_indices]
-	peak_ints = int_sim[peak_indices]
+		peak_freqs = freq_sim[peak_indices]
+		peak_ints = int_sim[peak_indices]		
+	
+	#if we're using the sum, we'll use integrated flux over the summed signal instead
+	
+	if use_sum is True:
+	
+		#find the peaks
+	
+		peak_indices = find_sim_peaks(freq_sum,int_sum,dV*sum_width_extend)
+	
+		peak_freqs = freq_sum[peak_indices]
+		
+		peak_ints = []
+		
+		#now we need to sum up for a good fraction on either side.
+		
+		for x in peak_freqs:
+		
+			#get the width we're working with in frequency space
+		
+			freq_width = dV*sum_width_extend*x/ckm
+		
+			#find the index half that width down and up from the peak center
+		
+			tmp_ll = find_nearest(freq_sum,(x-freq_width/2))
+			tmp_ul = find_nearest(freq_sum,(x+freq_width/2))
+		
+			#add up all the flux between those ranges and append it to peak_ints
+		
+			peak_ints.append(np.nansum(int_sum[tmp_ll:tmp_ul]))
 	
 	#create a dictionary to hold obs chunks
 	
@@ -3783,10 +3947,28 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 		l_idx = find_nearest(freq_local,l_freq)
 		u_idx = find_nearest(freq_local,u_freq)
 		
+		#if we're going to be plotting simulations, then sort those out.
+		
+		if use_sum is True:
+		
+			sim_l_idx = find_nearest(freq_sum,l_freq)
+			sim_u_idx = find_nearest(freq_sum,u_freq)
+			
+		else:
+		
+			sim_l_idx = find_nearest(freq_sim,l_freq)
+			sim_u_idx = find_nearest(freq_sim,u_freq)				
+		
 		#create and store an ObsChunk
+
+		if use_sum is True:
+	
+			obs_chunks[x] = ObsChunk(freq_local[l_idx:u_idx],int_local[l_idx:u_idx],cfreq,peak_int,x,freq_sim=freq_sum[sim_l_idx:sim_u_idx],int_sim=int_sum[sim_l_idx:sim_u_idx])
+			
+		else:
 		
-		obs_chunks[x] = ObsChunk(freq_local[l_idx:u_idx],int_local[l_idx:u_idx],cfreq,peak_int,x)
-		
+			obs_chunks[x] = ObsChunk(freq_local[l_idx:u_idx],int_local[l_idx:u_idx],cfreq,peak_int,x,freq_sim=freq_sim[sim_l_idx:sim_u_idx],int_sim=int_sim[sim_l_idx:sim_u_idx])
+
 	#for iterating convenience, we make an obs_list
 	
 	obs_list = []
@@ -3884,6 +4066,7 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 			obs.weight = obs.peak_int/max_int
 			obs.weight /= obs.rms**2	
 			obs.int_weighted = obs.intensity * obs.weight
+			obs.int_sim_weighted = obs.int_sim * obs.weight
 		
 	#ok, now we need to generate a velocity array to interpolate everything onto, using the specified number of FWHMs, dV, and the desired resolution.
 	
@@ -3902,12 +4085,14 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	
 		if obs.flag is False:
 	
-			obs.int_samp = np.interp(velocity_avg,obs.velocity,obs.int_weighted,left=np.nan,right=np.nan)
+			obs.int_samp = np.interp(velocity_avg,obs.velocity,obs.int_weighted,left=np.nan,right=np.nan)			
+			obs.int_sim_samp = np.interp(velocity_avg,obs.sim_velocity,obs.int_sim_weighted,left=np.nan,right=np.nan)
 
 	#ok, now we loop through all the chunks and add them to a list, then convert to an numpy array.  We have to do the same thing w/ RMS values to allow for proper division.
 					
 	interped_ints = []
 	interped_rms = []
+	interped_sim_ints = []
 	
 	i = 0
 	
@@ -3918,10 +4103,12 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 			i+=1
 		
 			interped_ints.append(obs.int_samp)
-			interped_rms.append(obs.rms)
+			interped_rms.append(obs.rms)		
+			interped_sim_ints.append(obs.int_sim_samp)
 			
 	interped_ints = np.asarray(interped_ints)
 	interped_rms = np.asarray(interped_rms)
+	interped_sim_ints = np.asarray(interped_sim_ints)
 	
 	#we're going to now need a point by point rms array, so that when we average up and ignore nans, we don't divide by extra values.
 	
@@ -3949,9 +4136,12 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	
 	int_avg = np.nansum(interped_ints,axis=0)/rms_array
 	
+	int_sim_avg = np.nansum(interped_sim_ints,axis=0)/rms_array
+	
 	#drop some edge channels
 	
 	int_avg = int_avg[5:-5]
+	int_sim_avg = int_sim_avg[5:-5]
 	velocity_avg = velocity_avg[5:-5]
 	
 	#finally, we get the final rms, and divide out to get to snr.  We'll use the first and last 25% of the data
@@ -3963,7 +4153,8 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	
 	rms_chunk = np.concatenate((int_avg[2:l_idx],int_avg[u_idx:-2]),axis=None)
 	
-	int_avg /= get_rms(rms_chunk)	
+	int_avg /= get_rms(rms_chunk)
+	int_sim_avg /= get_rms(rms_chunk)	
 
 	#Plotting!!!!
 
@@ -4054,6 +4245,11 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 					cax.set_ylim(fix_y[0],fix_y[1])
 				
 				cax.plot(chunk.frequency,chunk.intensity,color=color)
+				
+				if plot_sim_chunks is True:
+				
+					cax.plot(chunk.freq_sim,chunk.int_sim,color='green')
+				
 				cax.annotate('[{}]' .format(chunk.tag), xy=(0.1,0.8), xycoords='axes fraction', color=color)
 				
 				cax.locator_params(nbins=3) #Use only 3 actual numbers on the x-axis
@@ -4122,6 +4318,10 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 		ax_s.annotate(plotlabel, xy=(0.95,0.85), xycoords='axes fraction', color='black', **align_arg)					
 
 	ax_s.plot(velocity_avg,int_avg,color='black',label='stacked',zorder=5,linewidth=thick,drawstyle='steps')
+	
+	if plot_sim_stack is True:
+	
+		ax_s.plot(velocity_avg,int_sim_avg,color='red',label='simulation',zorder=10,linewidth=thick,drawstyle='steps')
 	
 	#add some minor ticks
 	
@@ -5016,6 +5216,10 @@ def make_postage_plot(PP):
 			
 				int_sim_tmp *= 1000
 				
+			max_int = np.nanmax(int_sim_tmp)
+			
+				
+				
 			if PP.velocity is True:			
 			
 				velocity_sim_tmp = np.zeros_like(freq_sim_tmp)
@@ -5024,9 +5228,17 @@ def make_postage_plot(PP):
 				
 				cax.plot(velocity_sim_tmp,int_sim_tmp,color=PP.sim_color,drawstyle=PP.sim_draw,zorder=2,linewidth=PP.sim_thick)	
 				
+				if PP.plot_error is True:
+				
+					cax.errorbar(0,max_int/2,xerr=PS.vel_error,color=PP.error_bar_color,zorder=3,linewidth=PP.error_bar_thick,fmt='none',capsize=PP.error_cap_size,alpha=0.5,capthick=PP.error_bar_thick)	
+				
 			else:
 			
 				cax.plot(freq_sim_tmp,int_sim_tmp,color=PP.sim_color,drawstyle=PP.sim_draw,zorder=2,linewidth=PP.sim_thick)
+				
+				if PP.plot_error is True:
+				
+					cax.errorbar(PS.cfreq,max_int/2,xerr=PS.error,color=PP.error_bar_color,zorder=3,linewidth=PP.error_bar_thick,fmt='none',capsize=PP.error_cap_size,alpha=0.5,capthick=PP.error_bar_thick)
 				
 		#Annotate the thing, if one has been provided
 		
@@ -5482,6 +5694,18 @@ def make_range_plot(RP):
 			
 				i += 1
 			
+		#add any markers
+		
+		if RP.markers is not None:
+		
+			#loop through all the markers, ignore any not in range, plot those that are.
+			
+			for mkr in RP.markers:
+			
+				if mkr.x > plt_ll and mkr.x < plt_ul:
+				
+					cax.plot((mkr.x+mkr.x_off),(mkr.y+mkr.y_off),marker=mkr.fmt,color=mkr.color,linewidth=mkr.linewidth,markersize=mkr.size)
+		
 		#add a legend to the plot, we'll have to iterate through the molecules and colors.
 	
 		#first we define a white box for the label
@@ -5882,6 +6106,14 @@ def get_brandon_tau(tau_freq):
 	
 	return									
 
+#saves the current observations to a numpy file of a specified name
+
+def write_npz_spec(file):
+
+	np.savez(file,freq_obs=freq_obs,int_obs=int_obs)
+	
+	return
+
 #############################################################
 #						Custom Aliases	   					#
 #############################################################
@@ -5934,7 +6166,7 @@ def load_mm1():
 
 	global tbg_range,tbg_type,tbg_params,planck,synth_beam,T,dV,vlsr,C
 
-	read_obs('/Users/Brett/Dropbox/Observations/ALMA/NGC6334I/spectra/mm1/mm1_fullspec.spec')
+	read_obs('/Users/Brett/Dropbox/Observations/ALMA/NGC6334I/spectra/mm1/mm1_fullspec.npz')
 	
 	tbg_range = [[130000,132500],[143500,146000],[251000,252500],[266000,266600],[270400,271000],[279000,283000],[290000,295000],[302400,306100],[336000,340000],[348000,352000],[682000,690000],[698400,706000],[873500,881500],[890000,898000]]
 
@@ -5963,7 +6195,7 @@ def load_tmc1():
 
 	global T,dV,vlsr,source_size,res,tbg_type
 
-	read_obs('/Users/Brett/Dropbox/TMC1/tmc_all_gbt.txt')
+	read_obs('/Users/Brett/Dropbox/TMC1/tmc_all_gbt.npz')
 	
 	T = 8
 
@@ -5985,7 +6217,7 @@ def load_primos_cold():
 
 	global T,dV,vlsr,source_size,res,tbg_type
 
-	read_obs('/Users/Brett/Dropbox/PRIMOS_DATA/blanked_primos_old.txt')
+	read_obs('/Users/Brett/Dropbox/PRIMOS_DATA/blanked_primos_old.npz')
 	
 	T = 5
 
@@ -6005,7 +6237,7 @@ def load_primos_hot():
 
 	global T,dV,vlsr,source_size,res,tbg_type
 
-	read_obs('/Users/Brett/Dropbox/PRIMOS_DATA/blanked_primos_old.txt')
+	read_obs('/Users/Brett/Dropbox/PRIMOS_DATA/blanked_primos_old.npz')
 	
 	T = 80
 
@@ -6029,7 +6261,7 @@ def load_asai(source):
 	
 	if source.lower() == 'barnard1' or source.lower() == 'b1':
 	
-		read_obs('/Users/Brett/Dropbox/Observations/ASAI/Barnard1/b1_concat_nodups.txt')
+		read_obs('/Users/Brett/Dropbox/Observations/ASAI/Barnard1/b1_concat_nodups.npz')
 	
 		T = 10
 
@@ -6037,7 +6269,7 @@ def load_asai(source):
 	
 	elif source.lower() == 'iras4a':
 	
-		read_obs('/Users/Brett/Dropbox/Observations/ASAI/IRAS4A/iras4a_concat_nodups.txt')
+		read_obs('/Users/Brett/Dropbox/Observations/ASAI/IRAS4A/iras4a_concat_nodups.npz')
 	
 		T = 21
 
@@ -6045,7 +6277,7 @@ def load_asai(source):
 
 	elif source.lower() == 'l1157b1':
 	
-		read_obs('/Users/Brett/Dropbox/Observations/ASAI/L1157B1/l1157b1_concat_nodups.txt')
+		read_obs('/Users/Brett/Dropbox/Observations/ASAI/L1157B1/l1157b1_concat_nodups.npz')
 	
 		T = 60
 
@@ -6053,7 +6285,7 @@ def load_asai(source):
 
 	elif source.lower() == 'l1157mm':
 	
-		read_obs('/Users/Brett/Dropbox/Observations/ASAI/L1157mm/l1157mm_concat_nodups.txt')
+		read_obs('/Users/Brett/Dropbox/Observations/ASAI/L1157mm/l1157mm_concat_nodups.npz')
 	
 		T = 60
 
@@ -6061,7 +6293,7 @@ def load_asai(source):
 		
 	elif source.lower() == 'l1448r2':
 	
-		read_obs('/Users/Brett/Dropbox/Observations/ASAI/L1448R2/l1448r2_concat_nodups.txt')
+		read_obs('/Users/Brett/Dropbox/Observations/ASAI/L1448R2/l1448r2_concat_nodups.npz')
 	
 		T = 60
 
@@ -6069,7 +6301,7 @@ def load_asai(source):
 		
 	elif source.lower() == 'l1527':
 	
-		read_obs('/Users/Brett/Dropbox/Observations/ASAI/L1527/l1527_concat_nodups.txt')
+		read_obs('/Users/Brett/Dropbox/Observations/ASAI/L1527/l1527_concat_nodups.npz')
 	
 		T = 12
 
@@ -6077,7 +6309,7 @@ def load_asai(source):
 		
 	elif source.lower() == 'l1544':
 	
-		read_obs('/Users/Brett/Dropbox/Observations/ASAI/l1544/l1544_concat_nodups.txt')
+		read_obs('/Users/Brett/Dropbox/Observations/ASAI/l1544/l1544_concat_nodups.npz')
 	
 		T = 10
 
@@ -6085,7 +6317,7 @@ def load_asai(source):
 		
 	elif source.lower() == 'svs13a':
 	
-		read_obs('/Users/Brett/Dropbox/Observations/ASAI/SVS13A/svs13a_concat_nodups.txt')
+		read_obs('/Users/Brett/Dropbox/Observations/ASAI/SVS13A/svs13a_concat_nodups.npz')
 	
 		T = 19
 
@@ -6095,7 +6327,7 @@ def load_asai(source):
 		
 	elif source.lower() == 'tmc1':
 	
-		read_obs('/Users/Brett/Dropbox/Observations/ASAI/TMC1/tmc1_concat_nodups.txt')
+		read_obs('/Users/Brett/Dropbox/Observations/ASAI/TMC1/tmc1_concat_nodups.npz')
 	
 		T = 7
 
@@ -6157,7 +6389,7 @@ class Molecule(object):
 		
 class ObsChunk(object):
 
-	def __init__(self,frequency,intensity,cfreq,peak_int,tag):
+	def __init__(self,frequency,intensity,cfreq,peak_int,tag,freq_sim=None,int_sim=None):
 	
 		self.frequency = frequency
 		self.intensity = intensity
@@ -6170,9 +6402,15 @@ class ObsChunk(object):
 		self.flag = False
 		self.weight = None
 		self.tag = tag
+		self.freq_sim = freq_sim
+		self.int_sim = int_sim
+		self.int_sim_samp = None
+		self.int_sim_weighted = None
+		self.sim_velocity = None
 		
 		self.set_flag()
 		self.set_velocity()
+		self.set_sim_velocity()
 		
 		self.set_rms()
 		
@@ -6203,6 +6441,22 @@ class ObsChunk(object):
 		
 		return
 		
+	def set_sim_velocity(self):
+	
+		if self.flag is True:
+		
+			return
+	
+		#make an array the same length as frequency
+	
+		sim_velocity = np.zeros_like(self.freq_sim)
+		
+		sim_velocity += (self.freq_sim - self.cfreq)*ckm/self.cfreq
+		
+		self.sim_velocity = sim_velocity
+		
+		return		
+		
 	def set_rms(self):
 	
 		if self.flag is True:
@@ -6215,7 +6469,7 @@ class ObsChunk(object):
 		
 class PostagePlot(object):
 
-	def __init__(self,lines,nwidths=40,ylims=None,velocity=False,pdf=False,obs=True,sim=True,nrows=None,ncols=None,obs_color='Black',sim_color='Red',obs_draw='steps',sim_draw='steps',title=None,GHz=False,xticks=3,yticks=3,xlabel=None,ylabel=None,milli=False,vlsr=vlsr,v_res=None,figsize=None,labels_size=18,lower_left_only=False,obs_thick=1.0,sim_thick=1.0):
+	def __init__(self,lines,nwidths=40,ylims=None,velocity=False,pdf=False,obs=True,sim=True,nrows=None,ncols=None,obs_color='Black',sim_color='Red',obs_draw='steps',sim_draw='steps',title=None,GHz=False,xticks=3,yticks=3,xlabel=None,ylabel=None,milli=False,vlsr=vlsr,v_res=None,figsize=None,labels_size=18,lower_left_only=False,obs_thick=1.0,sim_thick=1.0,error_bar_color='blue',error_bar_thick=1.0,plot_error=False,error_cap_size=2.):
 	
 		self.lines = lines
 		self.nwidths = nwidths
@@ -6244,21 +6498,39 @@ class PostagePlot(object):
 		self.lower_left_only = lower_left_only
 		self.obs_thick = obs_thick
 		self.sim_thick = sim_thick
-				
+		self.error_bar_color = error_bar_color
+		self.error_bar_thick = error_bar_thick
+		self.error_cap_size = error_cap_size
+		self.plot_error = plot_error
+		
 		return
 		
 class PostageStamp(object):
 
-	def __init__(self,cfreq,label=None):
+	def __init__(self,cfreq,error=None,label=None):
 	
 		self.cfreq = cfreq
 		self.label = label
+		self.error = error
+		self.vel_error = None
+		
+		self.set_vel_error()
 	
+		return
+
+	def set_vel_error(self):
+	
+		if self.error is None:
+		
+			return
+			
+		self.vel_error = self.error * ckm / self.cfreq
+		
 		return
 
 class RangePlot(object):
 
-	def __init__(self,full_range,chunk_range,ylims=None,pdf=False,obs=True,sims=['current'],nrows=None,ncols=None,obs_color='Black',sim_colors=['Red'],obs_draw='steps',sim_draw='steps',title=None,GHz=False,xticks=3,yticks=3,xlabel=None,ylabel=None,milli=False,figsize=None,labels_size=18,label_bottom_only=False,obs_thick=1.0,sim_thicks=[1.0],labels=[],labels_spacing=1,labels_shift=0,label_top_only=True):
+	def __init__(self,full_range,chunk_range,ylims=None,pdf=False,obs=True,sims=['current'],nrows=None,ncols=None,obs_color='Black',sim_colors=['Red'],obs_draw='steps',sim_draw='steps',title=None,GHz=False,xticks=3,yticks=3,xlabel=None,ylabel=None,milli=False,figsize=None,labels_size=18,label_bottom_only=False,obs_thick=1.0,sim_thicks=[1.0],labels=[],labels_spacing=1,labels_shift=0,label_top_only=True,use_markers=False,markers=None):
 	
 		self.full_range = full_range
 		self.chunk_range = chunk_range
@@ -6288,8 +6560,24 @@ class RangePlot(object):
 		self.labels_spacing = labels_spacing
 		self.labels_shift = labels_shift
 		self.label_top_only = label_top_only
+		self.markers = markers
 				
 		return
+		
+class RangeMarker(object):
+
+	def __init__(self,x,y,x_off=0.,y_off=0.,fmt='x',color='black',linewidth='1.',size='3.'):
+	
+		self.x = x
+		self.y = y
+		self.x_off = x_off
+		self.y_off = y_off
+		self.fmt = fmt
+		self.color = color
+		self.linewidth = linewidth
+		self.size = size
+		
+		return	
 
 class HarmonicPlot(object):
 
