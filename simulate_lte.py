@@ -4923,9 +4923,14 @@ def get_obs_rms(ll,ul):
 
 def get_sim_peak(ll,ul):
 
-	tmp_i = int_sim[np.where(np.copy(freq_sim)>ll)[0][0]:np.where(np.copy(freq_sim)>ul)[0][0]]
+	#get the indices
 	
-	return np.around(np.amax(tmp_i),5)
+	l_idx = find_nearest(freq_sim,ll)
+	u_idx = find_nearest(freq_sim,ul)
+
+	tmp_i = int_sim[l_idx:u_idx]
+	
+	return np.amax(tmp_i)
 
 #writes out the current simulation parameters - most useful for upper limits analyses
 
@@ -6154,6 +6159,18 @@ def get_brandon_tau(tau_freq):
 def write_npz_spec(file):
 
 	np.savez(file,freq_obs=freq_obs,int_obs=int_obs)
+	
+	return
+
+#set_ulim_c attempts to automatically set the upper limit column density based on the rms and peak simulated intensity within the given limits that default to ll and ul
+
+def set_ulim_c(ll=ll,ul=ul):
+
+	global C
+	
+	modC(C*get_obs_rms(ll,ul)/get_sim_peak(ll,ul))
+	
+	print('C: {:.2e}' .format(C))
 	
 	return
 
