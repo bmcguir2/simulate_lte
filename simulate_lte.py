@@ -6447,7 +6447,7 @@ def load_hexos(source,c=False,band=0,cr=False,hc=False):
 		
 		#Third range is from 1573600 - 1907150 and is y = -7.03292E-6*x + 28.1471 (inc. 2.7 CMB added in)
 	
-		range2 = [-7.03292E-6,28.1471]		
+		range3 = [-7.03292E-6,28.1471]		
 	
 		tbg_params = [range1,range2,range3]	
 	
