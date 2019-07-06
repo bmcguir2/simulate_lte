@@ -4498,13 +4498,17 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 	
 	n_ranges = int(len(tbg_range))
 	
-	#initialize a numpy array for tbg that is the same length as the requested array of covered frequencies
+	#initialize a numpy array for tbg that is the same length as the requested array of covered frequencies, detecting the single value edge case
 	
-	tbg = np.zeros_like(frequencies)
+	if len(frequencies) == 1:
 	
-	tbg = np.float64(tbg)
+		tbg = np.asarray([0.])
+		
+	else:
+	
+		tbg = np.zeros_like(frequencies)
 
-	#first, make sure to get tbg_params into list form if it's a single integer or float
+	#first, make sure to get tbg_params and tbg into list form if it's a single integer or float
 	
 	if type(tbg_params) == int or type(tbg_params) == float:
 		
@@ -4604,7 +4608,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 				
 					#If we can't find a point in frequencies that's above the upper limit, then the last point in the simulation is the upper limit index
 					i_high = len(frequencies)
-						
+					
 				#now that we have the indices i_low and i_high we are going to want to apply our tbg to, we can do as above
 				
 				#first, lets just get the constants for this particular range
@@ -4625,7 +4629,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 					
 					tmp_tbg = np.float64(tmp_tbg)
 					
-					tbg[i_low:i_high] += tmp_tbg[i_low:i_high]		
+					tbg[i_low:i_high] += tmp_tbg[i_low:i_high]
 					
 			tbg[tbg == 0] = 2.7
 			
@@ -4700,7 +4704,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 				except IndexError:
 				
 					#If we can't find a point in frequencies that's above the upper limit, then the last point in the simulation is the upper limit index
-					i_high = len(frequencies)
+					i_high = len(frequencies)					
 						
 				#now that we have the indices i_low and i_high we are going to want to apply our tbg to, we can do as above
 				
@@ -4783,7 +4787,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 				
 					#If we can't find a point in the simulation that's above the upper limit, then the last point in the simulation is the upper limit index
 					
-					i_high = len(frequencies)
+					i_high = len(frequencies)					
 						
 				#now that we have the indices i_low and i_high we are going to want to apply our tbg to, we can do as above
 				
@@ -4797,7 +4801,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 		
 				tmp_tbg = constants[0]*frequencies**constants[1] + constants[2]				
 					
-				tbg[i_low:i_high] += tmp_tbg[i_low:i_high]		
+				tbg[i_low:i_high] += tmp_tbg[i_low:i_high]			
 					
 			tbg[tbg == 0] = 2.7
 			
