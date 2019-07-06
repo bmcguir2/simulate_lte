@@ -238,7 +238,7 @@ tbg_range = []
 	#tbg_params = [27,32,37]
 	#tbg_range = [[100000,120000],[150000,160000],[190000,210000]]
 	
-#To have a power law across the entire simulation, with Y = Ax^B = C and A = 2, B = 1.2, and C = 0:
+#To have a power law across the entire simulation, with Y = Ax^B + C and A = 2, B = 1.2, and C = 0:
 
 	#tbg_params = [2,1.2,0]
 	#tbg_type = 'power'
@@ -1431,12 +1431,39 @@ def check_Q(x):
 	
 	print('Q({}) = {:.0f}' .format(x,Q))
 	
-	
 #get_Q returns Q at a given temperature x
 
 def get_Q(x):
 
 	return calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,x,catalog_file,vibs)
+	
+#check_Qvib prints out Qvib at a given temperature x
+
+def check_Qvib(x):
+
+	Qvib = calc_qvib(vibs,T)
+	
+	print('Q({}) = {:.5f}' .format(x,Qvib))
+	
+#get_Qvib returns Qvib at a given temperature x
+
+def get_Qvib(x):
+
+	return calc_qvib(vibs,T)
+	
+#check_Qrot prints out Qrot at a given temperature x
+
+def check_Qrot(x):
+
+	Qrot = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,x,catalog_file,vibs=None)
+	
+	print('Q({}) = {:.0f}' .format(x,Qrot))
+	
+#get_Qrot returns Qrot at a given temperature x
+
+def get_Qrot(x):
+
+	return calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,x,catalog_file,vibs=None)	
 
 #trim_array trims any given input array to the specified frequency ranges
 
@@ -3225,19 +3252,19 @@ def print_lines(mol='current',thresh=float('-inf'),rest=True,mK=False,return_arr
 					
 						if planck == True:
 							
-							print_array.append('Frequency\tIntensity (mJy)\t{}\tEu (K)   \tgJ\tlog(Aij)\tSij' .format(qn_str))
+							print_array.append('Frequency\tIntensity (mJy)\t{}\tEu (K)   \tgJ\tlog(Aij)\tSijmu^2' .format(qn_str))
 					
 						else:
 						
-							print_array.append('Frequency\tIntensity (mK)\t{}\tEu (K)   \tgJ\tlog(Aij)\tSij' .format(qn_str)) 
+							print_array.append('Frequency\tIntensity (mK)\t{}\tEu (K)   \tgJ\tlog(Aij)\tSijmu^2' .format(qn_str)) 
 											
 					elif planck == True:
 					
-						print_array.append('Frequency\tIntensity (Jy)\t{}\tEu (K)   \tgJ\tlog(Aij)\tSij' .format(qn_str))
+						print_array.append('Frequency\tIntensity (Jy)\t{}\tEu (K)   \tgJ\tlog(Aij)\tSijmu^2' .format(qn_str))
 						
 					else:
 					
-						print_array.append('Frequency\tIntensity (K)\t{}\tEu (K)   \tgJ\tlog(Aij)\tSij' .format(qn_str))
+						print_array.append('Frequency\tIntensity (K)\t{}\tEu (K)   \tgJ\tlog(Aij)\tSijmu^2' .format(qn_str))
 					
 						
 			
@@ -4469,7 +4496,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 	
 	#figure out how many ranges we're dealing with
 	
-	n_ranges = len(tbg_range)
+	n_ranges = int(len(tbg_range))
 	
 	#initialize a numpy array for tbg that is the same length as the requested array of covered frequencies
 	
@@ -4609,7 +4636,15 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 	
 		#need to reverse sort that list so that the ordering is correct, because it's specified by the user as : y = Ax^2 + Bx + C as [A,B,C], but the script below wants it in the order [C, B, A].
 		
-		tbg_params_tmp = tbg_params[::-1]	
+		#tbg_params can be a list of lists, so need to invert each one inside it
+		
+		tbg_params_tmp = []
+		
+		for x in tbg_params:
+		
+			tbg_params_tmp.append(x[::-1])
+		
+		#tbg_params_tmp = tbg_params[::-1]	
 	
 		#if there's no range specified...
 	
@@ -4699,7 +4734,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 	
 		#if there's no range specified...
 	
-		if n_ranges == 0:
+		if n_ranges == 0 or n_ranges == 1:
 
 			#create a temporary array to handle what is going to be added to tbg for this order
 				
@@ -4707,7 +4742,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 			
 			tmp_tbg = np.float64(tmp_tbg)
 		
-			tmp_tbg = tbg_params[0]*freq_sim**tbg_params[1] + tbg_params[3]
+			tmp_tbg = tbg_params[0]*frequencies**tbg_params[1] + tbg_params[2]
 		
 			tbg += tmp_tbg
 		
@@ -4760,7 +4795,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 				
 				tmp_tbg = np.float64(tmp_tbg)
 		
-				tmp_tbg = constants[0]*frequencies**constants[1] + constants[3]				
+				tmp_tbg = constants[0]*frequencies**constants[1] + constants[2]				
 					
 				tbg[i_low:i_high] += tmp_tbg[i_low:i_high]		
 					
@@ -4896,20 +4931,24 @@ def write_sim_params(outfile=None,notes=None,rms=False,lines=False):
 	
 		outfile = current.split('/')[-1].split('.')[0] + '.sim_params'
 		
-	peak_idx = np.argmax(np.copy(freq_sim))	
+	peak_idx = np.argmax(np.copy(int_sim))	
 		
 	Q = get_Q(T)
+	Qrot = get_Qrot(T)
+	Qvib = get_Qvib(T)
 		
 	with open(outfile, 'w') as output:
 	
 		output.write('Catalog File:\t{}\n' .format(current))
 		output.write('Spectrum File:\t{}\n' .format(spec))
 		output.write('Column Density:\t{:.2e} cm-2\n' .format(C))
-		output.write('Tex:\t\t\t{} K\n' .format(int(T)))
-		output.write('Tbg:\t\t\t{} K (@ {:.2f} MHz)\n' .format(check_tbg(freq_sim[peak_idx]),freq_sim[peak_idx]))
+		output.write('Tex:\t\t\t{} K\n' .format(T))
+		output.write('Tbg:\t\t\t{:.2f} K (@ {:.2f} MHz)\n' .format(check_tbg(freq_sim[peak_idx]),freq_sim[peak_idx]))
 		output.write('dV:\t\t\t\t{:.2f} km/s\n' .format(dV))
 		output.write('vlsr:\t\t\t{:.2f} km/s\n' .format(vlsr))
-		output.write('Q({})\t\t\t{}\n' .format(int(T),int(Q)))
+		output.write('Q({})\t\t\t{}\n' .format(T,int(Q)))
+		output.write('Qrot({})\t\t{}\n' .format(T,int(Qrot)))
+		output.write('Qvib({})\t\t{:.5f}\n' .format(T,Qvib))
 		if vibs is not None:
 			output.write('Vib Freqs:\t\t{}\n' .format(vibs))
 		if planck is False:
@@ -6188,7 +6227,6 @@ def load_mm1():
 
 	autoset_limits()
 	
-
 #load_tmc1() loads GOTHAM.
 
 def load_tmc1():
@@ -6343,6 +6381,192 @@ def load_asai(source):
 	
 	return
 	
+#load_hexos() loads up a hexos data set, given a ton of options
+
+def load_hexos(source,c=False,band=0,cr=False,hc=False):
+
+	global tbg_type,tbg_params,tbg_range,dV,T,source_size
+
+	sources = ['sgrb2','orionkl']
+	
+	if source == 'sgrb2n':
+	
+		source = 'sgrb2'
+	
+	path = '/Users/Brett/Dropbox/HEXOS_Data/formatted/'
+	
+	if c is True:
+	
+		cont_str = 'c' 
+		
+	else:
+	
+		cont_str = 'nc'
+		
+	if cr is True:
+	
+		cr_str = 'cr'
+		
+	if hc is True:
+	
+		hr_str = 'hc'
+	
+	if source.lower() not in sources:
+	
+		print("Only 'sgrb2' and 'orionkl' are valid specifiers for hexos quickload.")
+		
+		return
+		
+	if source.lower() == 'sgrb2':
+	
+		T = 280.
+		
+		dV = 8.
+		
+		source_size = 2.3
+	
+		path += 'sgr_hexos/' + cont_str + '/'
+			
+		if band == 0:
+		
+			path += 'hexos_sgrb2n_' + cont_str + '.npz'
+			
+		else:
+		
+			path += 'band' + band + '_sgrb2n_' + cont_str + '.tap.a.npz'
+			
+		tbg_type = 'poly'
+	
+		#First range is from 479600 - 1280200 and is y = 1.65327E-5*x - 3.10799 (inc. 2.7 CMB added in)
+	
+		range1 = [1.65327E-5,-3.10799]
+	
+		#Second range is from 1425500 - 1535200 and is y = 0*x + 16.19 (inc. 2.7 CMB added in)
+	
+		range2 = [0,16.19]
+		
+		#Third range is from 1573600 - 1907150 and is y = -7.03292E-6*x + 28.1471 (inc. 2.7 CMB added in)
+	
+		range2 = [-7.03292E-6,28.1471]		
+	
+		tbg_params = [range1,range2,range3]	
+	
+		tbg_range = [[479600,1280200],[1425500,1535200],[1573600,1907150]]				
+		
+	elif source.lower() == 'orionkl':
+	
+		dV = 6.5
+		
+		T = 200.
+		
+		source_size = 10.
+	
+		path += 'orionkl_hexos/' + cont_str + '/'
+			
+		if cr is False and hc is False:
+		
+			if band == 0:
+			
+				path += 'hexos_orionkl_' + cont_str + '.npz'
+				
+			else:
+		
+				path += 'band' + band + '_orionkl_' + cont_str + '.tap.a.npz'
+			
+			tbg_type = 'power'
+			
+			tbg_params = [8.2279E-14,2.3395,2.5501] #Power law fit to the non-continuum subtracted baseline, with 2.7 K added back in for the CMB.
+			
+			tbg_range = [[470000,1296000]]
+			
+		elif cr is True:
+		
+			if band == 0:
+			
+				path += 'cr/' + 'hexos_orionkl_' + cont_str + '_cr.npz'
+				
+			else:
+		
+				path += 'cr/' + 'band' + band + 'cr_orionkl_' + cont_str + '.tmb.a.npz'
+			
+			tbg_type = 'poly'
+		
+			#First range is from 1425900 - 1535100 and is y = 0.000012027*x - 0.8076 (inc. 2.7 CMB added in)
+		
+			range1 = [0.000012027,-0.8076]
+		
+			#Second range is from 1573300 - 1798247.5 and is y = 0.0000168957*x - 5.7911 (inc. 2.7 CMB added in)
+		
+			range2 = [0.0000168957,-5.7911]
+		
+			#Third range is from 1798247.5 - 1906600 and is y = 0.0000138264*x - 1.3533 (inc. 2.7 CMB added in)
+		
+			range3 = [0.0000138264,-1.3533]
+		
+			tbg_params = [range1,range2,range3]	
+		
+			tbg_range = [[1425900,1535100],[1573300,1798247.5],[1798247.5,1906600]]		
+					
+		elif hc is True:
+		
+			if band == 0:
+			
+				path += 'hc/' + 'hexos_orionkl_' + cont_str + '_hc.npz'
+				
+			else:
+		
+				path += 'hc/' + 'band' + band + 'hc_orionkl_' + cont_str + '.tmb.a.npz'
+				
+			tbg_type = 'poly'
+		
+			#First range is from 1425900 - 1702847.27 and is y = 0.0000181332*x - 9.86691 (inc. 2.7 CMB added in)
+		
+			range1 = [0.0000181332,-9.86691]
+		
+			#Second range is from 1702847.27 - 1798247.5 and is y = 0.000019472*x - 12.9821 (inc. 2.7 CMB added in)
+		
+			range2 = [0.000019472,-12.9821]
+		
+			tbg_params = [range1,range2]	
+		
+			tbg_range = [[1425900,1702847.27],[1702847.27,1798247.5]]			
+			
+	read_obs(path)
+	
+	autoset_limits()
+		
+	return
+	
+	
+#meta function to print all the possible load options
+
+def print_quickloads():
+
+	quickloads = [
+	
+		'load_mm1()',
+		'load_tmc1()',
+		'load_primos_cold()',
+		'load_primos_hot()',
+		"load_asai('b1')",
+		"load_asai('iras4a')",
+		"load_asai('l1157b1')",
+		"load_asai('l1157mm')",
+		"load_asai('l1448r2')",
+		"load_asai('l1527')",
+		"load_asai('l1544')",
+		"load_asai('svs13a')",
+		"load_asai('tmc1')",
+		'load_hexos(source,c=False,band=0,cr=False,hc=False)'
+	
+	]		
+	
+	for x in quickloads:
+	
+		print(x)
+		
+	return
+					
 
 #############################################################
 #							Classes for Storing Results		#
