@@ -4533,7 +4533,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 		
 		tau = np.zeros_like(frequencies)
 		
-		tau = np.float64(tau)
+		#tau = np.float64(tau)
 		
 		tau = tauref * pow((frequencies*1e6/(taufreq*1e9)), beta)
 		
@@ -4627,7 +4627,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 					
 					tmp_tbg = np.full_like(frequencies,value)
 					
-					tmp_tbg = np.float64(tmp_tbg)
+					#tmp_tbg = np.float64(tmp_tbg)
 					
 					tbg[i_low:i_high] += tmp_tbg[i_low:i_high]
 					
@@ -4662,7 +4662,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 				
 				tmp_tbg = np.zeros_like(frequencies)
 				
-				tmp_tbg = np.float64(tmp_tbg)
+				#tmp_tbg = np.float64(tmp_tbg)
 				
 				tmp_tbg = tbg_params_tmp[x]*frequencies**x
 				
@@ -4724,7 +4724,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 					
 					tmp_tbg = np.zeros_like(frequencies)
 					
-					tmp_tbg = np.float64(tmp_tbg)
+					#tmp_tbg = np.float64(tmp_tbg)
 					
 					tmp_tbg = constants[x]*frequencies**x
 					
@@ -4744,7 +4744,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 				
 			tmp_tbg = np.zeros_like(frequencies)
 			
-			tmp_tbg = np.float64(tmp_tbg)
+			#tmp_tbg = np.float64(tmp_tbg)
 		
 			tmp_tbg = tbg_params[0]*frequencies**tbg_params[1] + tbg_params[2]
 		
@@ -4797,7 +4797,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 			
 				tmp_tbg = np.zeros_like(frequencies)
 				
-				tmp_tbg = np.float64(tmp_tbg)
+				#tmp_tbg = np.float64(tmp_tbg)
 		
 				tmp_tbg = constants[0]*frequencies**constants[1] + constants[2]				
 					
@@ -4825,7 +4825,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 		
 		tbg = np.zeros_like(frequencies)
 		
-		tbg = np.float64(tbg)
+		#tbg = np.float64(tbg)
 		
 		tbg += 2.7
 		
