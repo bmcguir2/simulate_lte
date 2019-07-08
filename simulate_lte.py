@@ -6167,11 +6167,11 @@ def write_npz_spec(file):
 
 #set_ulim_c attempts to automatically set the upper limit column density based on the rms and peak simulated intensity within the given limits that default to ll and ul
 
-def set_ulim_c(ll=ll,ul=ul):
+def set_ulim_c(x1=ll,x2=ul):
 
 	global C
 	
-	modC(C*get_obs_rms(ll,ul)/get_sim_peak(ll,ul))
+	modC(C*get_obs_rms(x1,x2)/get_sim_peak(x1,x2))
 	
 	print('C: {:.2e}' .format(C))
 	
