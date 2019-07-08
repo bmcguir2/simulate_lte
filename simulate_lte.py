@@ -819,6 +819,10 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 		#Q = 23.82947*T**(1.50124) #JPL DATABASE VALUE
 		Q = 5.957729*T**(1.501233) #Ilyushin 2014 paper value
 		
+	elif 'hc11n' in catalog_file.lower() and 'hfs' not in catalog_file.lower():
+	
+		Q = 123.2554*T + 0.1381
+		
 	elif 'hc9n' in catalog_file.lower() and 'hfs' not in catalog_file.lower():
 	
 		Q = 71.7308577*T + 0.02203968
@@ -833,7 +837,15 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 		
 	elif 'hc7n' in catalog_file.lower() and 'hfs' in catalog_file.lower(): 
 	
-		Q = 3*36.94999*T + 3*0.1356045		
+		Q = 3*36.94999*T + 3*0.1356045	
+		
+	elif 'hc4nc' in catalog_file.lower():
+	
+		Q = 44.62171*T +0.6734	
+		
+	elif 'propargylcyanide' in catalog_file.lower() or 'propargyl_cyanide' in catalog_file.lower():
+	
+		Q = 41.542*T**1.5008 + 1.5008
 
 	else:
 	
@@ -4907,7 +4919,7 @@ def get_obs_rms(ll,ul):
 	
 #get the peak simulated value in a region
 
-def get_sim_peak(ll,ul):
+def get_sim_peak(ll,ul,absorption=False):
 
 	#get the indices
 	
@@ -4916,7 +4928,13 @@ def get_sim_peak(ll,ul):
 
 	tmp_i = int_sim[l_idx:u_idx]
 	
-	return np.amax(tmp_i)
+	if absorption is True:
+	
+		return np.abs(np.amin(tmp_i))
+		
+	else:
+	
+		return np.amax(tmp_i)
 
 #writes out the current simulation parameters - most useful for upper limits analyses
 
@@ -6150,11 +6168,17 @@ def write_npz_spec(file):
 
 #set_ulim_c attempts to automatically set the upper limit column density based on the rms and peak simulated intensity within the given limits that default to ll and ul
 
-def set_ulim_c(x1,x2):
+def set_ulim_c(x1,x2,level=None,absorption=False):
 
 	global C
 	
-	modC(C*get_obs_rms(x1,x2)/get_sim_peak(x1,x2))
+	if level is None:
+	
+		modC(C*get_obs_rms(x1,x2)/get_sim_peak(x1,x2,absorption=absorption))
+		
+	else:
+	
+		modC(C*level/get_sim_peak(x1,x2,absorption=absorption))
 	
 	print('C: {:.2e}' .format(C))
 	
@@ -6260,7 +6284,7 @@ def load_tmc1():
 
 def load_primos_cold():
 
-	global T,dV,vlsr,source_size,res,tbg_type
+	global T,dV,vlsr,source_size,res,tbg_type,dish_size
 
 	read_obs('/Users/Brett/Dropbox/PRIMOS_DATA/blanked_primos_old.npz')
 	
@@ -6271,6 +6295,7 @@ def load_primos_cold():
 	vlsr = 0
 	
 	source_size = 20
+	dish_size = 100
 
 	autoset_limits()
 	
@@ -6280,7 +6305,7 @@ def load_primos_cold():
 
 def load_primos_hot():
 
-	global T,dV,vlsr,source_size,res,tbg_type
+	global T,dV,vlsr,source_size,res,tbg_type,dish_size
 
 	read_obs('/Users/Brett/Dropbox/PRIMOS_DATA/blanked_primos_old.npz')
 	
@@ -6291,6 +6316,7 @@ def load_primos_hot():
 	vlsr = 0
 	
 	source_size = 5
+	dish_size = 100
 
 	autoset_limits()
 	
@@ -6392,7 +6418,7 @@ def load_asai(source):
 
 def load_hexos(source,c=False,band=0,cr=False,hc=False):
 
-	global tbg_type,tbg_params,tbg_range,dV,T,source_size
+	global tbg_type,tbg_params,tbg_range,dV,T,source_size,dish_size
 
 	sources = ['sgrb2','orionkl']
 	
@@ -6423,6 +6449,8 @@ def load_hexos(source,c=False,band=0,cr=False,hc=False):
 		print("Only 'sgrb2' and 'orionkl' are valid specifiers for hexos quickload.")
 		
 		return
+		
+	dish_size = 3.5
 		
 	if source.lower() == 'sgrb2':
 	
@@ -6544,7 +6572,31 @@ def load_hexos(source,c=False,band=0,cr=False,hc=False):
 		
 	return
 	
+
+#load_belloche() loads up the IRAM 30m survey of Sgr B2N
+
+def load_belloche():
+
+	global T, dish_size, tbg_params, source_size, dV, vlsr, constant
+
+	read_obs('/Users/Brett/Dropbox/PRIMOS_DATA/belloche_sgrb2.npz')
+	autoset_limits()
 	
+	T = 120
+	dish_size = 30
+	
+	tbg_type = 'constant'
+	tbg_params = [5.2]
+	tbg_range = [[ll,ul]]
+	
+	source_size = 2.2
+	
+	dV = 5.0
+	
+	vlsr = 0.0
+
+	return
+
 #meta function to print all the possible load options
 
 def print_quickloads():
@@ -6565,6 +6617,7 @@ def print_quickloads():
 		"load_asai('svs13a')",
 		"load_asai('tmc1')",
 		'load_hexos(source,c=False,band=0,cr=False,hc=False)'
+		'load_belloche()'
 	
 	]		
 	
