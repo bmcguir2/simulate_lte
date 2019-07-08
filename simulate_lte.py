@@ -4915,9 +4915,12 @@ def get_rms(intensity):
 
 def get_obs_rms(ll,ul):
 
-	tmp_i = int_obs[np.where(np.copy(freq_obs)>ll)[0][0]:np.where(np.copy(freq_obs)>ul)[0][0]]
+	l_idx = find_nearest(freq_obs,ll)
+	u_idx = find_nearest(freq_obs,ul)
 
-	return np.around(get_rms(tmp_i),5)
+	tmp_i = int_obs[l_idx:u_idx]
+
+	return get_rms(tmp_i)
 	
 #get the peak simulated value in a region
 
