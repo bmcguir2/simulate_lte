@@ -4533,8 +4533,6 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 		
 		tau = np.zeros_like(frequencies)
 		
-		#tau = np.float64(tau)
-		
 		tau = tauref * pow((frequencies*1e6/(taufreq*1e9)), beta)
 		
 		T_Jy_tmp = np.zeros_like(frequencies)
@@ -4568,8 +4566,6 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 		if n_ranges == 0:
 
 			tmp_tbg = np.full_like(frequencies,tbg_params)
-			
-			tmp_tbg = np.float64(tmp_tbg)
 			
 			tbg = tmp_tbg
 	
@@ -4627,8 +4623,6 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 					
 					tmp_tbg = np.full_like(frequencies,value)
 					
-					#tmp_tbg = np.float64(tmp_tbg)
-					
 					tbg[i_low:i_high] += tmp_tbg[i_low:i_high]
 					
 			tbg[tbg == 0] = 2.7
@@ -4647,8 +4641,6 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 		for x in tbg_params:
 		
 			tbg_params_tmp.append(x[::-1])
-		
-		#tbg_params_tmp = tbg_params[::-1]	
 	
 		#if there's no range specified...
 	
@@ -4661,8 +4653,6 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 				#create a temporary array to handle what is going to be added to tbg for this order
 				
 				tmp_tbg = np.zeros_like(frequencies)
-				
-				#tmp_tbg = np.float64(tmp_tbg)
 				
 				tmp_tbg = tbg_params_tmp[x]*frequencies**x
 				
@@ -4724,8 +4714,6 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 					
 					tmp_tbg = np.zeros_like(frequencies)
 					
-					#tmp_tbg = np.float64(tmp_tbg)
-					
 					tmp_tbg = constants[x]*frequencies**x
 					
 					tbg[i_low:i_high] += tmp_tbg[i_low:i_high]		
@@ -4743,8 +4731,6 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 			#create a temporary array to handle what is going to be added to tbg for this order
 				
 			tmp_tbg = np.zeros_like(frequencies)
-			
-			#tmp_tbg = np.float64(tmp_tbg)
 		
 			tmp_tbg = tbg_params[0]*frequencies**tbg_params[1] + tbg_params[2]
 		
@@ -4796,8 +4782,7 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 				constants = tbg_params[i]
 			
 				tmp_tbg = np.zeros_like(frequencies)
-				
-				#tmp_tbg = np.float64(tmp_tbg)
+	
 		
 				tmp_tbg = constants[0]*frequencies**constants[1] + constants[2]				
 					
@@ -4824,8 +4809,6 @@ def calc_tbg(tbg_params,tbg_type,tbg_range,frequencies):
 		print('Your Tbg calls are not set properly. This is likely because you have tbg_type set to something other than poly or power. Tbg has been defaulted to the CMB value of 2.7 K across your entire simulation.  Please see the Tbg documentation if this is not what you desire.')
 		
 		tbg = np.zeros_like(frequencies)
-		
-		#tbg = np.float64(tbg)
 		
 		tbg += 2.7
 		
