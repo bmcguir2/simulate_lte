@@ -812,7 +812,8 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 		
 	elif 'h2ccs' in catalog_file.lower():
 	
-		Q = -0.00000000328379*T**5 + 0.000002934039*T**4 -0.001093668*T**3 + 0.315766*T**2 + 12.08729*T - 66.79358
+		#Q = -0.00000000328379*T**5 + 0.000002934039*T**4 -0.001093668*T**3 + 0.315766*T**2 + 12.08729*T - 66.79358
+		Q = 3.5655362887*T**1.5 -8.3747644
 		
 	elif 'ch3nh2' in catalog_file.lower():
 	
@@ -6326,9 +6327,14 @@ def load_primos_hot():
 
 def load_asai(source):
 
-	global T,dV,vlsr,source_size,res,dish_size
+	global T,dV,vlsr,source_size,res,dish_size,tbg_type,tbg_range,tbg_params
 	
 	dish_size = 30
+	source_size = 1E20
+	tbg_range = []
+	tbg_type = 'constant'
+	tbg_params = [2.7]
+	vlsr = 0.
 	
 	if source.lower() == 'barnard1' or source.lower() == 'b1':
 	
@@ -6587,7 +6593,7 @@ def load_belloche():
 	
 	tbg_type = 'constant'
 	tbg_params = [5.2]
-	tbg_range = [[ll,ul]]
+	tbg_range = []
 	
 	source_size = 2.2
 	
