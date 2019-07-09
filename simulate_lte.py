@@ -6364,6 +6364,8 @@ def load_asai(source):
 		T = 10
 
 		dV = 0.8
+		
+		source_size = 1E20
 	
 	elif source.lower() == 'iras4a':
 	
@@ -6372,6 +6374,8 @@ def load_asai(source):
 		T = 21
 
 		dV = 5	
+		
+		source_size = 1E20
 
 	elif source.lower() == 'l1157b1':
 	
@@ -6379,7 +6383,9 @@ def load_asai(source):
 	
 		T = 60
 
-		dV = 8		
+		dV = 8	
+		
+		source_size = 1E20	
 
 	elif source.lower() == 'l1157mm':
 	
@@ -6389,6 +6395,8 @@ def load_asai(source):
 
 		dV = 3
 		
+		source_size = 1E20
+		
 	elif source.lower() == 'l1448r2':
 	
 		read_obs('/Users/Brett/Dropbox/Observations/ASAI/L1448R2/l1448r2_concat_nodups.npz')
@@ -6396,6 +6404,8 @@ def load_asai(source):
 		T = 60
 
 		dV = 8	
+		
+		source_size = 1E20
 		
 	elif source.lower() == 'l1527':
 	
@@ -6405,6 +6415,8 @@ def load_asai(source):
 
 		dV = 0.5
 		
+		source_size = 1E20
+		
 	elif source.lower() == 'l1544':
 	
 		read_obs('/Users/Brett/Dropbox/Observations/ASAI/l1544/l1544_concat_nodups.npz')
@@ -6412,6 +6424,8 @@ def load_asai(source):
 		T = 10
 
 		dV = 0.5
+		
+		source_size = 1E20
 		
 	elif source.lower() == 'svs13a':
 	
@@ -6430,6 +6444,8 @@ def load_asai(source):
 		T = 7
 
 		dV = 0.3
+		
+		source_size = 1E20
 		
 	else:
 	
