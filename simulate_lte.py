@@ -5147,7 +5147,8 @@ def make_postage_plot(PP):
 		
 		if PP.ylims != None:
 		
-			cax.set_ylim(PP.ylims[0],PP.ylims[1])		
+			cax.set_ylim(PP.ylims[0],PP.ylims[1])
+					
 			
 		#set the local cfreq, and if indicated, augment it by the vlsr, so we're shifted to center
 		
@@ -5297,7 +5298,17 @@ def make_postage_plot(PP):
 		
 		if PS.label != None:
 		
-			cax.annotate('{}' .format(PS.label), xy=(0.05,0.85), xycoords='axes fraction', color='black')
+			if PS.box is False:
+		
+				cax.annotate('{}' .format(PS.label), xy=(0.05,0.85), xycoords='axes fraction', color='black')
+				
+			else:
+			
+				#first we define a white box for the label
+	
+				bbox_props = dict(boxstyle='square', fc='white', lw=0)
+				
+				cax.annotate('{}' .format(PS.label), xy=(0.05,0.85), xycoords='axes fraction', color='black', bbox = bbox_props)
 			
 		#Add an annotation for the restfrequency used for the velocity calculation if we're in velocity space
 		
@@ -5315,7 +5326,15 @@ def make_postage_plot(PP):
 			
 			align_arg = {'ha' : 'right'}
 		
-			cax.annotate(cfreq_label, xy=(0.95,0.85), xycoords='axes fraction', color='black', **align_arg )				
+			if PS.box is False:
+			
+				cax.annotate(cfreq_label, xy=(0.95,0.85), xycoords='axes fraction', color='black', **align_arg )
+				
+			else:
+			
+				bbox_props = dict(boxstyle='square', fc='white', lw=0)
+				
+				cax.annotate(cfreq_label, xy=(0.95,0.85), xycoords='axes fraction', color='black', **align_arg, bbox = bbox_props)								
 			
 		#set the number of x-ticks
 				
@@ -6426,7 +6445,7 @@ def load_asai(source):
 
 def load_hexos(source,c=False,band=0,cr=False,hc=False):
 
-	global tbg_type,tbg_params,tbg_range,dV,T,source_size,dish_size
+	global tbg_type,tbg_params,tbg_range,dV,T,source_size,dish_size,vlsr
 
 	sources = ['sgrb2','orionkl']
 	
@@ -6459,6 +6478,8 @@ def load_hexos(source,c=False,band=0,cr=False,hc=False):
 		return
 		
 	dish_size = 3.5
+	
+	vlsr = 0.0
 		
 	if source.lower() == 'sgrb2':
 	
@@ -6799,11 +6820,12 @@ class PostagePlot(object):
 		
 class PostageStamp(object):
 
-	def __init__(self,cfreq,error=None,label=None):
+	def __init__(self,cfreq,error=None,label=None,box=False):
 	
 		self.cfreq = cfreq
 		self.label = label
 		self.error = error
+		self.box = box
 		self.vel_error = None
 		
 		self.set_vel_error()
