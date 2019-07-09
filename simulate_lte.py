@@ -6173,6 +6173,8 @@ def set_ulim_c(x1,x2,level=None,absorption=False):
 
 	global C
 	
+	modC(C)
+	
 	if level is None:
 	
 		modC(C*get_obs_rms(x1,x2)/get_sim_peak(x1,x2,absorption=absorption))
