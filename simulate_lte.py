@@ -5322,7 +5322,7 @@ def make_postage_plot(PP):
 			
 				units = 'MHz'
 		
-			cfreq_label = '{} {}' .format(PS.cfreq,units)
+			cfreq_label = '{:.1f} {}' .format(PS.cfreq,units)
 			
 			align_arg = {'ha' : 'right'}
 		
