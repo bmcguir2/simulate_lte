@@ -72,6 +72,8 @@
 # 6.32 - adds ability to add markers on range plots
 # 6.33 - updates flux simulation calculation; does not consider 'beam dilution' in these cases
 # 6.34 - adds numpy saving and loading for observations
+# 6.35 - adds creation of matched filter plot to velocity_stack
+
 
 #############################################################
 #							Preamble						#
@@ -104,13 +106,14 @@ import math
 import matplotlib.gridspec as gridspec
 from scipy.optimize import minimize
 import ast
+from scipy import signal
 
 matplotlib.rc('text', usetex = True)
 matplotlib.rc('text.latex',preamble=r'\usepackage{cmbright}')
 
 
 
-version = 6.34
+version = 6.35
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -269,6 +272,10 @@ int_man = []
 
 freq_resid = [] #to hold residual spectra
 int_resid = []
+
+velocity_mf = [] #to hold matched filter spectra
+intensity_mf = []
+
 current = catalog_file
 
 obs_name = ''
@@ -770,14 +777,6 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 	
 		Q = -1.64946939*10**-9*T**4 + 4.62476813*10**-6*T**3 - 1.15188755*10**-3*T**2 + 1.48629408*T + .386550361
 		
-	elif catalog_file=='hc9n.cat':
-	
-		Q = 71.730808*T + 0.040659
-		
-	elif catalog_file=='hc7n.cat':
-	
-		Q = 36.949992*T + 0.135605
-		
 	elif 'methanol.cat' in catalog_file.lower() or 'ch3oh.cat' in catalog_file.lower() or 'ch3oh_v0.cat' in catalog_file.lower() or 'ch3oh_v1.cat' in catalog_file.lower() or 'ch3oh_v2.cat' in catalog_file.lower() or 'ch3oh_vt.cat' in catalog_file.lower():
 	
 		Q = 4.83410*10**-11*T**6 - 4.04024*10**-8*T**5 + 1.27624*10**-5*T**4 - 1.83807*10**-3*T**3 + 2.05911*10**-1*T**2 + 4.39632*10**-1*T -1.25670
@@ -820,6 +819,12 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 		#Q = 23.82947*T**(1.50124) #JPL DATABASE VALUE
 		Q = 5.957729*T**(1.501233) #Ilyushin 2014 paper value
 		
+	elif 'n2h+_hfs' in catalog_file.lower():
+	
+		Q = 3.2539 + 4.0233*T + 1.0014E-5*T**2		
+		
+	#GOTHAM PARTITION FUNCTIONS BELOW	
+		
 	elif 'hc11n' in catalog_file.lower() and 'hfs' not in catalog_file.lower():
 	
 		Q = 123.2554*T + 0.1381
@@ -840,14 +845,194 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 	
 		Q = 3*36.94999*T + 3*0.1356045	
 		
-	elif 'hc4nc' in catalog_file.lower():
+	elif 'hc5n' in catalog_file.lower() and 'hfs' not in catalog_file.lower():
 	
-		Q = 44.62171*T +0.6734	
+		Q = 15.65419*T + 0.2214
+		
+	elif 'hc5n' in catalog_file.lower() and 'hfs' in catalog_file.lower(): 
+	
+		Q = 3*15.65419*T + 0.2214
+		
+	elif 'hc3n' in catalog_file.lower() and 'hfs' not in catalog_file.lower():
+	
+		Q = 4.581898*T + 0.2833
+		
+	elif 'hc3n' in catalog_file.lower() and 'hfs' in catalog_file.lower(): 
+	
+		Q = 3*4.581898*T + 0.2833
+		
+	elif 'hc2nc' in catalog_file.lower() and 'hfs' not in catalog_file.lower():
+	
+		Q = (12.58340*T + 1.0604)/3			
+		
+	elif 'hc2nc' in catalog_file.lower() and 'hfs' in catalog_file.lower():
+	
+		Q = 12.58340*T + 1.0604		
+		
+	elif 'hc4nc' in catalog_file.lower() and 'hfs' not in catalog_file.lower():
+	
+		Q = (44.62171*T + 0.6734)/3							
+		
+	elif 'hc4nc' in catalog_file.lower() and 'hfs' in catalog_file.lower():
+	
+		Q = 44.62171*T + 0.6734
+		
+	elif 'hc6nc' in catalog_file.lower() and 'hfs' not in catalog_file.lower():
+	
+		Q = (107.3126*T + 1.2714)/3		
+
+	elif 'hc6nc' in catalog_file.lower() and 'hfs' in catalog_file.lower():
+	
+		Q = 107.3126*T + 1.2714
 		
 	elif 'propargylcyanide' in catalog_file.lower() or 'propargyl_cyanide' in catalog_file.lower():
 	
 		Q = 41.542*T**1.5008 + 1.5008
+	
+	elif 'pyrrole' in catalog_file.lower():
+	
+		Q = 27.727*T**1.4752
+		
+		if T == CT:
+		
+			Q = 58328.0735
+			
+		elif T > 40:
+		
+			print('Warning: Extrapolating Q beyond 40 K for this molecule gets progressively iffier.')	
+			
+	elif 'cyclopentadiene' in catalog_file.lower():
+	
+		Q = 9.7764*T**1.5 + 3.5246
+	
+		if T == CT:
+		
+			Q = 36251.5276	
 
+		elif T > 40:
+		
+			print('Warning: Extrapolating Q beyond 40 K for this molecule gets progressively iffier.')
+			
+	elif '1-cyano-CPD' in catalog_file.lower():
+	
+		Q = 101.0674*T**1.5 + 23.9985
+		
+		if T == CT:
+		
+			Q = 374492.9985	
+
+		elif T > 40:
+		
+			print('Warning: Extrapolating Q beyond 40 K for this molecule gets progressively iffier.')
+			
+	elif '2-cyano-CPD' in catalog_file.lower():
+	
+		Q = 102.0047*T**1.5 + 25.442
+		
+		if T == CT:
+		
+			Q = 37627.1111	
+			
+		elif T > 40:
+		
+			print('Warning: Extrapolating Q beyond 40 K for this molecule gets progressively iffier.')							
+		
+	elif 'cyclopropylcyanide_hfs' in catalog_file.lower():
+	
+		Q = 38.199*T**1.4975					
+		
+	elif 'pyridine' in catalog_file.lower():
+	
+		Q = 50.478*T**1.4955
+		
+	elif '1-cyanonapthalene' in catalog_file.lower():
+	
+		Q = 560.39*T**1.4984
+		
+		if T == CT:
+		
+			Q = 2108153.3871	
+			
+		elif T > 40:
+		
+			print('Warning: Extrapolating Q beyond 40 K for this molecule gets progressively iffier.')			
+		
+	elif '2-cyanonapthalene' in catalog_file.lower():
+	
+		Q = 562.57*T**1.4993
+		
+		if T == CT:
+		
+			Q = 2514761.8013	
+			
+		elif T > 40:
+		
+			print('Warning: Extrapolating Q beyond 40 K for this molecule gets progressively iffier.')	
+		
+	elif 'furan' in catalog_file.lower():
+	
+		Q = 33.725*T**1.4982
+		
+	elif 'phenol' in catalog_file.lower():
+	
+		Q = 264.20*T**1.4984
+		
+	elif 'benzaldehyde' in catalog_file.lower():
+	
+		Q = 53.798*T**1.4997
+		
+	elif 'anisole' in catalog_file.lower():
+	
+		Q = 54.850*T**1.4992
+		
+	elif 'azulene' in catalog_file.lower():
+	
+		Q = 96.066*T**1.4988
+		
+		if T == CT:
+		
+			Q = 383985.5935	
+			
+		elif T > 40:
+		
+			print('Warning: Extrapolating Q beyond 40 K for this molecule gets progressively iffier.')			
+		
+	elif 'acenaphthene' in catalog_file.lower():
+	
+		Q = 160.9183316*T**1.5 + 4.987858
+		
+		if T == CT:
+		
+			Q = 713664.5114	
+			
+		elif T > 40:
+		
+			print('Warning: Extrapolating Q beyond 40 K for this molecule gets progressively iffier.')		
+		
+	elif 'acenaphthylene' in catalog_file.lower():
+	
+		Q = 150.8688*T**1.5 + 12.1748
+		
+		if T == CT:
+		
+			Q = 597794.8438	
+			
+		elif T > 40:
+		
+			print('Warning: Extrapolating Q beyond 40 K for this molecule gets progressively iffier.')	
+		
+	elif 'fluorene' in catalog_file.lower():
+	
+		Q = 219.170*T**1.5 + 4.34551
+		
+		if T == CT:
+		
+			Q = 1031274.8660	
+			
+		elif T > 40:
+		
+			print('Warning: Extrapolating Q beyond 40 K for this molecule gets progressively iffier.')	
+		
 	else:
 	
 		nstates = elower.size #Determine the number of total states in the raw cat file
@@ -2045,7 +2230,7 @@ def recall(x):
 	
 #overplot overplots a previously-stored simulation on the current plot in a color other than red, but does not touch the simulation active in the main program. 'x' must be entered as a string with quotes.
 
-def overplot(x,cchoice=None):
+def overplot(x,cchoice=None,thick=1.0,line_style='default'):
 
 	'''
 	overplots a previously-stored simulation on the current plot in a color other than red, but does not touch the simulation active in the main program. 'x' must be entered as a string with quotes.  Defaults to choosing a color from a large pool of random colors.  you can specify a color by giving it a string as the second variable.  The string is either a hex color code, or one of the few matplotlib defaults like 'red' 'green' 'blue'.
@@ -2068,16 +2253,14 @@ def overplot(x,cchoice=None):
 			line_color = [line.get_color() for line in ax.lines if line.get_label()==sim[x].name][0]
 		else:
 			line_color = cchoice
-		line_style = [line.get_linestyle() for line in ax.lines if line.get_label()==sim[x].name][0]
 		clear_line(sim[x].name)
 	else:
 		if cchoice == None:
 			line_color = next(colors)
 		else:
-			line_color = cchoice
-		line_style = '-'			
+			line_color = cchoice			
 	
-	lines[sim[x].name] = ax.plot(freq_sim,int_sim,color = line_color, linestyle=line_style, label = sim[x].name)
+	lines[sim[x].name] = ax.plot(freq_sim,int_sim,color = line_color, linestyle=line_style, label = sim[x].name,linewidth=thick)
 	
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
@@ -2179,11 +2362,16 @@ def load_mol(x,format='spcat',vib_states=None):
 	
 	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file,vibs=None)
 
-	sijmu = (exp(np.float64(-(elower/0.695)/CT)) - exp(np.float64(-(eupper/0.695)/CT)))**(-1) * ((10**logint)/frequency) * ((4.16231*10**(-5))**(-1)) * Q
+	#from CDMS website
+
+	sijmu = (exp(np.float64(-(elower/0.695)/CT)) - exp(np.float64(-(eupper/0.695)/CT)))**(-1) * ((10**logint)/frequency) * (24025.120666) * Q
+
 	
 	#aij formula from CDMS.  Verfied it matched spalatalogue's values
 	
 	aij = 1.16395 * 10**(-20) * frequency**3 * sijmu / gup
+	
+	print('A value of Q({}) = {} was used to calculated the Sijmu^2 and Aij values for this species.' .format(int(CT),int(Q)))
 	
 	freq_sim,int_sim=run_sim(tmp_freq,intensity,T,dV,C)
 	
@@ -3177,6 +3365,7 @@ def print_lines(mol='current',thresh=float('-inf'),rest=True,mK=False,return_arr
 
 		catalog = splice_array(raw_array)
 		
+		gup = np.asarray(catalog[5])
 		qn1 = np.asarray(catalog[8])
 		qn2 = np.asarray(catalog[9])
 		qn3 = np.asarray(catalog[10])
@@ -3240,7 +3429,9 @@ def print_lines(mol='current',thresh=float('-inf'),rest=True,mK=False,return_arr
    
 					qn_string = '{:>2} {: >3} {: >3} {: >3} {: >3} {: >3} -> {:>2} {: >3} {: >3} {: >3} {: >3} {: >3}' .format(qn1[y][i],qn2[y][i],qn3[y][i],qn4[y][i],qn5[y][i],qn6[y][i],qn7[y][i],qn8[y][i],qn9[y][i],qn10[y][i],qn11[y][i],qn12[y][i])							
 	
-				gJ = 2*qn1[y][i] + 1
+				#gJ = 2*qn1[y][i] + 1
+				
+				gJ = gup[y][0]
 				
 				qn_string.strip()
 			
@@ -3800,52 +3991,67 @@ def find_vel_peaks(velocity,intensity,fwhm,sigma=3,width_tweak=1.0):
 		return peak_indices,rms	
 		
 # find peaks in the intensity array more than 3 sigma (optionally adjustable) and return the indices of those peaks
-	
-def find_sim_peaks(frequency,intensity,fwhm):
-		
-		'''
-		find peaks in the intensity array more than 3 sigma (optionally adjustable) and return the indices of those peaks and the rms
-		'''
-		
-		#figure out how many channels a typical line will span
-		
-		#calculate fwhm in MHz
-		
-		fwhm_MHz = fwhm*np.median(frequency)/ckm
-		
-		#calculate channel spacing in MHz
-		
-		dMHz_chan = abs(frequency[3] - frequency[2])
-		
-		if dMHz_chan < 0.000000000001:
-		
-			dMHz_chan = abs(frequency[9] - frequency[8])
-			
-		if dMHz_chan < 0.000000000001:
-		
-			dMHz_chan = abs((freq_obs[0] - freq_obs[10])/10)			
-			
-		if dMHz_chan < 0.000000000001:
-		
-			print('The program determined the channel spacing was {} MHz.  Oops.  Please take a look and make sure your frequency input is correct.' .format(dMHz_chan))
-			
-		#calculate the number of channels per FHWM
-		
-		fwhm_chan = fwhm_MHz/dMHz_chan	
-		
-		#define the number of channels per line, modified by width_tweak:
-		
-		line_chan = int(fwhm_chan * 5)
-				
-		intensity_tmp = np.asarray(intensity)
-		
-		#replace nans with zeros
-		
-		intensity_tmp = np.nan_to_num(intensity_tmp)
 
-		peak_indices = peakutils.indexes(intensity_tmp,0,min_dist=int(fwhm_chan*.5))
-		
-		return peak_indices		
+def find_sim_peaks(frequency,intensity,min_sep):
+
+	'''
+	finds peaks in the intensity array that are separated by at least min_sep and returns the indices of those peaks	
+	'''
+	
+	#Here's the problem.  Min_sep is given in km/s.  Our input frequency array is not in km/s and it's not uniformly spaced in km/s.  So we first need to create a temporary uniformly spaced array in velocity, resample both frequency and intensity onto that, then find the peaks, find the corresponding frequencies, and return the indices of those in the original array.
+	
+	#get the max and the min frequency
+	
+	max_f = np.amax(frequency)
+	min_f = np.amin(frequency)
+	cfreq = (max_f + min_f)/2
+	
+	#get the finest spacing in velocity space - it will be at the highest end of the spectrum.  We assume we're working with a properly set resolution.
+	
+	v_res = res*ckm/max_f
+	
+	#get the total range in velocity space that we're spanning, setting the central frequency as v = 0.
+	
+	v_span = (max_f - min_f) * ckm/(cfreq)
+	
+	#figure out how many channels we'll need
+	
+	nchans = int(v_span / v_res)
+	
+	#make a uniformly sampled array in velocity space
+	
+	v_samp = np.linspace(-v_span/2,v_span/2,num=nchans,endpoint=True)
+	
+	#convert this to frequency space
+	
+	f_samp = np.copy(v_samp)
+	
+	f_samp = cfreq + v_samp*cfreq/ckm
+	
+	#interpolate the simulation onto this
+	
+	int_samp = np.interp(f_samp,frequency,intensity,left=0.,right=0.)
+	
+	#figure out how many channels min_sep is in our uniformy sampled spectrum
+	
+	chan_sep = min_sep/v_res
+	
+	#find the peaks in the resampled spectrum
+	
+	indices_samp  = signal.find_peaks(int_samp,distance=chan_sep)
+	
+	#now we find the frequencies corresponding to those indices
+	
+	peak_freqs = f_samp[indices_samp[0]]
+	
+	#now we find the closets indices for those in the original frequency spectrum
+	
+	indices = [find_nearest(frequency,x) for x in peak_freqs]
+	
+	indices = np.asarray(indices)	
+	
+	return indices
+	
 		
 # plot_peaks will plot the peaks, as well as the determined rms level and the baseline mask, optionally
 
@@ -3908,7 +4114,595 @@ def find_nearest(array,value):
 	
 #velocity_stack does a velocity stacking analysis using the current ll and ul, and the current simulation, using lines that are at least 0.1 sigma or larger, with the brightest simulated line scaled to be 1 sigma.
 
-def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,plot_chunks=False,blank_lines=False,fix_y=False,line_stats=True,pdf=False,labels_size=12,figsize=(6,4),thick=1.0,plotlabel=None,ylims=None,calc_sigma=False,label_sigma=False,plot_sigma=False,use_sum=False,sum_width_extend=3,plot_sim_chunks=False,plot_sum_range=False,plot_sim_stack=False):
+def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,plot_chunks=False,blank_lines=False,fix_y=False,line_stats=True,pdf=False,labels_size=12,figsize=(6,4),thick=1.0,plotlabel=None,ylims=None,calc_sigma=False,label_sigma=False,plot_sigma=False,use_sum=False,sum_width_extend=3,plot_sim_chunks=False,plot_sum_range=False,plot_sim_stack=False,stack_out=None,sim_out=None,npz_out=False,mf=False,mf_out=None,mf_vmult=5.,mf_label=None,mf_pdf=False):
+
+	if flag_lines is True and blank_lines is True:
+	
+		print('You have set both flag_lines and blank_lines to True.  Flag_lines will supercede this and blank_lines will do nothing.  You have been warned.')
+	
+	freq_local = np.copy(freq_obs)
+	int_local = np.copy(int_obs)
+
+	if use_sum is False:
+	
+		#find the simulation indices where the peaks are
+	
+		peak_indices = find_sim_peaks(freq_sim,int_sim,dV)
+		
+		#find the frequencies and intensities corresponding to those peaks
+	
+		peak_freqs = freq_sim[peak_indices]
+		peak_ints = int_sim[peak_indices]		
+	
+	#if we're using the sum, we'll use integrated flux over the summed signal instead
+	
+	if use_sum is True:
+	
+		#find the peaks
+	
+		peak_indices = find_sim_peaks(freq_sum,int_sum,dV*sum_width_extend)
+	
+		peak_freqs = freq_sum[peak_indices]
+		
+		for x in range(len(peak_freqs)):
+		
+			#print('I found a line in the sum at {:.4f} MHz' .format(peak_freqs[x]))
+		
+			freq_idx = find_nearest(frequency,peak_freqs[x]+vlsr*peak_freqs[x]/ckm)
+		
+			peak_freqs[x] = frequency[freq_idx]-vlsr*peak_freqs[x]/ckm
+			
+			#print('I assigned that line to catalog frequency {:.4f}, which is at {:.4f} in the vlsr shifted spectrum.' .format(frequency[freq_idx],peak_freqs[x]))
+		
+		peak_ints = []
+		
+		#now we need to sum up for a good fraction on either side.
+		
+		for x in peak_freqs:
+		
+			#get the width we're working with in frequency space
+		
+			freq_width = dV*sum_width_extend*x/ckm
+		
+			#find the index half that width down and up from the peak center
+		
+			tmp_ll = find_nearest(freq_sum,(x-freq_width/2))
+			tmp_ul = find_nearest(freq_sum,(x+freq_width/2))
+		
+			#add up all the flux between those ranges and append it to peak_ints
+		
+			peak_ints.append(np.nansum(int_sum[tmp_ll:tmp_ul]))
+	
+	obs_chunks = {}
+	
+	for x in range(len(peak_freqs)):
+	
+		#get some temporary variables to hold the center frequency and peak intensity
+		
+		cfreq = peak_freqs[x]
+		peak_int = peak_ints[x]
+						
+		#calculate the lower and upper frequencies corresponding to vel_width FWHM away from the center frequency.
+		
+		#first we find out how far up and down we need to span in frequency space
+		
+		freq_width = vel_width*dV*cfreq/ckm
+		
+		#get the lower frequency we need
+		
+		l_freq = cfreq - freq_width
+		
+		#get the upper frequency we need
+		
+		u_freq = cfreq + freq_width
+		
+		#find the indexes in the observation closest to those frequencies
+		
+		l_idx = find_nearest(freq_local,l_freq)
+		u_idx = find_nearest(freq_local,u_freq)
+		
+		#if we're going to be plotting simulations, then sort those out.
+		
+		if use_sum is True:
+		
+			sim_l_idx = find_nearest(freq_sum,l_freq)
+			sim_u_idx = find_nearest(freq_sum,u_freq)
+			
+		else:
+		
+			sim_l_idx = find_nearest(freq_sim,l_freq)
+			sim_u_idx = find_nearest(freq_sim,u_freq)				
+		
+		#create and store an ObsChunk
+
+		if use_sum is True:
+	
+			obs_chunks[x] = ObsChunk(freq_local[l_idx:u_idx],int_local[l_idx:u_idx],cfreq,peak_int,x,freq_sim=freq_sum[sim_l_idx:sim_u_idx],int_sim=int_sum[sim_l_idx:sim_u_idx])
+			
+		else:
+		
+			obs_chunks[x] = ObsChunk(freq_local[l_idx:u_idx],int_local[l_idx:u_idx],cfreq,peak_int,x,freq_sim=freq_sim[sim_l_idx:sim_u_idx],int_sim=int_sim[sim_l_idx:sim_u_idx])
+
+	#for iterating convenience, we make an obs_list
+	
+	obs_list = []
+	
+	for obs in obs_chunks:
+	
+		obs_list.append(obs_chunks[obs])	
+		
+	#now we do some stupid checking
+		
+	for obs in obs_list:
+		
+		#if the flag is already tripped, just move on.  Below, as soon as a flag is tripped we move on.
+		
+		if obs.flag is True:
+		
+			continue
+			
+		#we'll check to see if there is any data within 0.5*dV of the line.  If not, then we're going to flag it.		
+		
+		#create an array that is a copy of the frequencies in the chunk
+		
+		diffs = np.copy(obs.frequency)
+		
+		#subtract the line frequency from all of those
+		
+		diffs -= obs.cfreq
+		
+		#get the absolute value
+		
+		diffs = abs(diffs)
+		
+		#then if the minimum value of that array isn't less than 0.5*dV, we flag it
+		
+		if np.amin(diffs) > 0.5*dV:
+	
+			obs.flag = True
+			
+			continue
+			
+		#make sure the len of the array isn't something dumb, like 0
+		
+		if len(obs.frequency) == 0:
+	
+			obs.flag = True
+			
+			continue
+			
+		#drop anything corresponding to the drop list
+		
+		if obs.tag in drops:
+		
+			obs.flag = True
+			
+			continue
+			
+		#if we're flagging windows that have other lines in them, do that.
+		
+		if flag_lines is True:
+		
+			if any(abs(obs.intensity) > flag_int_thresh*obs.rms):
+			
+				obs.flag = True
+				
+				if print_flags is True:
+				
+					print('I detected and deleted a line at {} MHz from the stack.' .format(obs.cfreq))
+					
+				continue
+				
+		#if we're just blanking some lines:
+		
+		if blank_lines is True:
+		
+			obs.intensity[abs(obs.intensity) > flag_int_thresh*obs.rms] = np.nan		
+
+	#now we have to figure out the weights for the arrays.  We start by finding the maximum line height, and scaling all of them so that the largest value is 1, excepting anything we've flagged.
+	
+	peaks = []
+	
+	for obs in obs_list:
+	
+		if obs.flag is False:
+		
+			peaks.append(obs.weight)
+		
+	max_int = max(peak_ints)
+		
+	#now we divide all our obs chunks by that, and then weight them down by their rms^2
+		
+	for obs in obs_list:
+	
+		if obs.flag is False:
+	
+			obs.weight = obs.peak_int/max_int
+			obs.weight /= obs.rms**2	
+			obs.int_weighted = obs.intensity * obs.weight
+			obs.int_sim_weighted = obs.int_sim * obs.weight
+		
+	#ok, now we need to generate a velocity array to interpolate everything onto, using the specified number of FWHMs, dV, and the desired resolution.
+	
+	#calculate the velocity bounds
+	
+	l_vel = -vel_width*dV
+	u_vel = vel_width*dV
+	
+	#generate the array
+	
+	velocity_avg = np.arange(l_vel,u_vel,v_res)
+	
+	#go through all the chunks and resample them, setting anything that is outside the range we asked for to be nans.
+		
+	for obs in obs_list:
+	
+		if obs.flag is False:
+	
+			obs.int_samp = np.interp(velocity_avg,obs.velocity,obs.int_weighted,left=np.nan,right=np.nan)			
+			obs.int_sim_samp = np.interp(velocity_avg,obs.sim_velocity,obs.int_sim_weighted,left=np.nan,right=np.nan)
+
+	#ok, now we loop through all the chunks and add them to a list, then convert to an numpy array.  We have to do the same thing w/ RMS values to allow for proper division.
+					
+	interped_ints = []
+	interped_rms = []
+	interped_sim_ints = []
+	
+	i = 0
+	
+	for obs in obs_list:
+	
+		if obs.flag is False:
+		
+			i+=1
+		
+			interped_ints.append(obs.int_samp)
+			interped_rms.append(obs.rms)		
+			interped_sim_ints.append(obs.int_sim_samp)
+			
+	interped_ints = np.asarray(interped_ints)
+	interped_rms = np.asarray(interped_rms)
+	interped_sim_ints = np.asarray(interped_sim_ints)
+	
+	#we're going to now need a point by point rms array, so that when we average up and ignore nans, we don't divide by extra values.
+	
+	rms_array = []
+	
+	for x in range(len(velocity_avg)):	
+	
+		rms_sum = 0
+		
+		for y in range(len(interped_rms)):
+		
+			if np.isnan(interped_ints[y][x]):
+			
+				continue
+				
+			else:
+			
+				rms_sum += interped_rms[y]**2	
+				
+		rms_array.append(rms_sum)
+		
+	rms_array = np.copy(rms_array)
+
+	#now we add up the interped intensities, then divide that by the rms_array
+	
+	int_avg = np.nansum(interped_ints,axis=0)/rms_array
+	
+	int_sim_avg = np.nansum(interped_sim_ints,axis=0)/rms_array
+	
+	#drop some edge channels
+	
+	int_avg = int_avg[5:-5]
+	int_sim_avg = int_sim_avg[5:-5]
+	velocity_avg = velocity_avg[5:-5]
+	
+	#finally, we get the final rms, and divide out to get to snr. # We'll use the first and last 25% of the data (not anymore)
+	
+	#npts = len(int_avg)
+	
+	#l_idx = int(npts*0.25)
+	#u_idx = int(npts*0.75)
+	
+	#rms_chunk = np.concatenate((int_avg[2:l_idx],int_avg[u_idx:-2]),axis=None)
+	
+	#int_avg /= get_rms(rms_chunk)
+	#int_sim_avg /= get_rms(rms_chunk)	
+	
+	rms_tmp = get_rms(int_avg)
+	
+	int_avg /= rms_tmp
+	int_sim_avg /= rms_tmp
+
+	#Plotting!!!!
+
+	plt.ion()
+	
+	#set some defaults
+	
+	fontparams = {'size':labels_size, 'family':'sans-serif','sans-serif':['Helvetica']}
+	
+	plt.rc('font',**fontparams)
+	plt.rc('mathtext', fontset='stixsans')
+	
+	#Plot the chunks
+	
+	if plot_chunks is True:
+	
+		#We do 16 panels per figure, so let's get the number of figures we'll have
+		
+		n_figs = math.ceil(len(obs_chunks)/16)
+		
+		#loop through and make the figures one at a time.  The stack will be figure 0.
+		
+		for x in range(0,n_figs+0):
+		
+			#make a figure
+		
+			plt.figure(x+1)			
+			
+			#now we loop over the appropriate range of chunks
+			
+			chunk_range = np.arange(0,16) + x*16
+			
+			#Generate a grid specification for a 4x4 plot
+			
+			gs = gridspec.GridSpec(4,4)
+			
+			#Now, we add subplots at the [row,column] we want in that grid
+			
+			ax1 = plt.subplot(gs[0,0])
+			ax2 = plt.subplot(gs[0,1])
+			ax3 = plt.subplot(gs[0,2])
+			ax4 = plt.subplot(gs[0,3])
+			ax5 = plt.subplot(gs[1,0])
+			ax6 = plt.subplot(gs[1,1])
+			ax7 = plt.subplot(gs[1,2])
+			ax8 = plt.subplot(gs[1,3])
+			ax9 = plt.subplot(gs[2,0])
+			ax10 = plt.subplot(gs[2,1])
+			ax11 = plt.subplot(gs[2,2])
+			ax12 = plt.subplot(gs[2,3])
+			ax13 = plt.subplot(gs[3,0])
+			ax14 = plt.subplot(gs[3,1])
+			ax15 = plt.subplot(gs[3,2])
+			ax16 = plt.subplot(gs[3,3])
+			
+			#make a list so we can iterate over these
+			
+			axes = [ax1,ax2,ax3,ax4,ax5,ax6,ax7,ax8,ax9,ax10,ax11,ax12,ax13,ax14,ax15,ax16]
+			
+			#loop through and set the axis settings and the data to show
+			
+			for y in range(len(axes)):
+			
+				#get the current axis (cax) we're working with
+				
+				cax = axes[y]
+				
+				#get the chunk we're working with.  If we're over the limit, just be done with it.
+				
+				if chunk_range[y] > len(obs_list)-1:
+				
+					continue
+				
+				chunk = obs_list[chunk_range[y]]
+				
+				#set the color according to whether it was flagged
+				
+				if chunk.flag is True:
+				
+					color = 'red'
+					
+				else:
+				
+					color = 'black'
+					
+				if fix_y is not False:
+				
+					cax.set_ylim(fix_y[0],fix_y[1])
+				
+				cax.plot(chunk.frequency,chunk.intensity,color=color)
+				
+				if plot_sim_chunks is True:
+				
+					cax.plot(chunk.freq_sim,chunk.int_sim,color='green')
+				
+				cax.annotate('[{}]' .format(chunk.tag), xy=(0.1,0.8), xycoords='axes fraction', color=color)
+				
+				cax.locator_params(nbins=3) #Use only 3 actual numbers on the x-axis
+				
+				cax.get_xaxis().get_major_formatter().set_scientific(False) #Don't let the x-axis go into scientific notation
+				cax.get_xaxis().get_major_formatter().set_useOffset(False)		
+				
+			plt.tight_layout()
+			
+			plt.show()				
+										
+	
+	#Plot the stack
+	
+	nflags = 0
+	nlines = 0
+	
+	for obs in obs_list:
+	
+		if obs.flag is True:
+		
+			nflags += 1
+		
+		else:
+		
+			nlines += 1
+			
+	SNR = max(int_avg)	
+	min_val = min(int_avg)	
+	
+	plt.close(fig='stack')	
+	
+	fig = plt.figure(num='stack',figsize=figsize)
+	
+	ax_s = fig.add_subplot(111)
+
+	minorLocator = AutoMinorLocator(5)
+	plt.xlabel('Velocity (km/s)')
+	plt.ylabel('SNR ($\sigma$)')
+
+	plt.locator_params(nbins=4) #Use only 4 actual numbers on the x-axis
+	ax_s.xaxis.set_minor_locator(minorLocator) #Let the program calculate some minor ticks from that
+
+	ax_s.get_xaxis().get_major_formatter().set_scientific(False) #Don't let the x-axis go into scientific notation
+	ax_s.get_xaxis().get_major_formatter().set_useOffset(False)
+	
+	if ylims != None:
+	
+		ax_s.set_ylim([ylims[0],ylims[1]])
+	
+	elif SNR < 10:
+	
+		ax_s.set_ylim([-4,12])
+	
+	else:
+	
+		ax_s.set_ylim([-4,1.3*SNR])
+	
+	if line_stats is True:
+	
+		ax_s.annotate('{} Lines Stacked\n{} Lines Rejected\nSNR: {:.1f}' .format(nlines,nflags,SNR), xy=(0.1,0.8), xycoords='axes fraction',label='legend')
+		
+	if plotlabel != None:
+	
+		align_arg = {'ha' : 'right'}
+	
+		ax_s.annotate(plotlabel, xy=(0.95,0.85), xycoords='axes fraction', color='black', **align_arg)					
+
+	ax_s.plot(velocity_avg,int_avg,color='black',label='stacked',zorder=5,linewidth=thick,drawstyle='steps')
+	
+	if plot_sim_stack is True:
+	
+		ax_s.plot(velocity_avg,int_sim_avg,color='red',label='simulation',zorder=10,linewidth=thick,drawstyle='steps')
+	
+	#add some minor ticks
+	
+	ax_s.minorticks_on()
+	
+	ax_s.tick_params(axis='x', which='both', direction='in')
+	ax_s.tick_params(axis='y', which='both', direction='in')
+	
+	#make sure ticks are on both mirror axes
+	
+	ax_s.yaxis.set_ticks_position('both')
+	ax_s.xaxis.set_ticks_position('both')
+	
+	#load into globals
+	
+	global vel_stacked,int_stacked
+	
+	vel_stacked = np.copy(velocity_avg)
+	int_stacked = np.copy(int_avg)
+	
+	#write anything out as requested
+	
+	if stack_out is not None:
+
+		if npz_out is False:
+	
+			with open(stack_out, 'w') as output:
+		
+				for x in range(len(vel_stacked)):
+			
+					output.write('{} {}\n' .format(vel_stacked[x],int_stacked[x]))
+				
+		else:
+	
+			np.savez(stack_out,vel_stacked=vel_stacked,int_stacked=int_stacked)
+			
+	if sim_out is not None:
+	
+		if npz_out is False:
+		
+			with open(sim_out, 'w') as output:
+			
+				for x in range(len(vel_stacked)):
+				
+					output.write('{} {}\n' .format(vel_stacked[x],int_sim_avg[x]))
+					
+		else:
+		
+			np.savez(stack_out,vel_stacked=vel_stacked,int_sim_avg=int_sim_avg)				
+			
+	#run a matched filter if one was requested
+	
+	if mf is True:
+	
+		filter_stack(drops = drops, flag_lines=flag_lines,flag_int_thresh = flag_int_thresh, print_flags = print_flags, vel_width = vel_width*mf_vmult, v_res = v_res,blank_lines=blank_lines,labels_size=labels_size,figsize=figsize,thick=thick,plotlabel=mf_label,use_sum=use_sum,sum_width_extend=sum_width_extend,mf_out=mf_out,npz_out=npz_out,mf_pdf=mf_pdf)
+		
+	
+	plt.figure('stack')
+	
+	#deal with calculating integrated sigmas now.  If we aren't going to do it, we're just done.  clean up and return
+	
+	if calc_sigma is False:
+	
+		plt.show()
+		
+		if pdf is not False:
+	
+			plt.savefig(pdf,format='pdf',transparent=True,bbox_inches='tight')
+	
+		return
+		
+	#Otherwise, we find the indices for the given velocity range.  Ranges are specified in the calc_sigma = [0,1,2,3], where 0 and 1 are the lower and upper limits to the line you want to integrate, and 2 and 3 are the lower and upper limits for the region the noise is taken from.
+	
+	line_l_idx = find_nearest(velocity_avg,calc_sigma[0])
+	line_u_idx = find_nearest(velocity_avg,calc_sigma[1])
+	
+	noise_l_idx = find_nearest(velocity_avg,calc_sigma[2])
+	noise_u_idx = find_nearest(velocity_avg,calc_sigma[3])
+	
+	#get sigma from the noise
+	
+	sigma = get_rms(int_avg[noise_l_idx:noise_u_idx])
+	
+	#calculate the snr
+			
+	snr = np.sum(int_avg[line_l_idx:line_u_idx])/(sigma*np.sqrt(len(int_avg[line_l_idx:line_u_idx])))
+	
+	#if we aren't adding this to the graph, print the result
+	
+	if label_sigma is False:
+	
+		print('The SNR of the line integrated from {} - {} km/s is {} sigma.' .format(calc_sigma[0],calc_sigma[1],snr))
+		
+	#if we are labeling it, then do that	
+		
+	if label_sigma is True:
+	
+		align_arg = {'ha' : 'right'}
+	
+		ax_s.annotate('Int. SNR: {:.1f}$\sigma$' .format(snr), xy=(0.95,0.75), xycoords='axes fraction', color='black', **align_arg)	
+	
+	#if we're plotting the range we integrated over, do that	
+		
+	if plot_sigma is True:
+	
+		plt.axvspan(calc_sigma[0], calc_sigma[1], alpha=0.05, color='blue',zorder=0)
+		plt.axvline(x=calc_sigma[0],alpha=0.2,color='blue',zorder=0)
+		plt.axvline(x=calc_sigma[1],alpha=0.2,color='blue',zorder=0)				
+	
+	plt.show()
+	
+	if pdf is not False:
+	
+		plt.savefig(pdf,format='pdf',transparent=True,bbox_inches='tight')
+	
+	
+	return
+
+#filter_stack does a velocity stacking analysis using the current ll and ul, and the current simulation, and then pushes a matched filter through.
+
+def filter_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,blank_lines=False,labels_size=12,figsize=(6,4),thick=1.0,plotlabel=None,ylims=None,use_sum=False,sum_width_extend=3,mf_out=None,npz_out=False,mf_pdf=False):
 
 	if flag_lines is True and blank_lines is True:
 	
@@ -4184,150 +4978,49 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	int_sim_avg = int_sim_avg[5:-5]
 	velocity_avg = velocity_avg[5:-5]
 	
-	#finally, we get the final rms, and divide out to get to snr.  We'll use the first and last 25% of the data
+	#finally, we get the final rms, and divide out to get to snr. # We'll use the first and last 25% of the data (not anymore)
 	
-	npts = len(int_avg)
+	#npts = len(int_avg)
 	
-	l_idx = int(npts*0.25)
-	u_idx = int(npts*0.75)
+	#l_idx = int(npts*0.25)
+	#u_idx = int(npts*0.75)
 	
-	rms_chunk = np.concatenate((int_avg[2:l_idx],int_avg[u_idx:-2]),axis=None)
+	#rms_chunk = np.concatenate((int_avg[2:l_idx],int_avg[u_idx:-2]),axis=None)
 	
-	int_avg /= get_rms(rms_chunk)
-	int_sim_avg /= get_rms(rms_chunk)	
+	#int_avg /= get_rms(rms_chunk)
+	#int_sim_avg /= get_rms(rms_chunk)	
+	
+	rms_tmp = get_rms(int_avg)
+	
+	int_avg /= rms_tmp
+	int_sim_avg /= rms_tmp	
 
-	#Plotting!!!!
-
-	plt.ion()
+	#Matched filtering stuff below from Loomis
 	
-	#set some defaults
+	#now we push the filter through; 'same' mode preserves the same shape of array as before
 	
-	fontparams = {'size':labels_size, 'family':'sans-serif','sans-serif':['Helvetica']}
+	int_mf = np.convolve(int_avg,int_sim_avg,mode='same')
 	
-	plt.rc('font',**fontparams)
-	plt.rc('mathtext', fontset='stixsans')
+	mf_rms = get_rms(int_mf)
 	
-	#Plot the chunks
+	int_mf /= mf_rms
 	
-	if plot_chunks is True:
+	#stats
 	
-		#We do 16 panels per figure, so let's get the number of figures we'll have
-		
-		n_figs = math.ceil(len(obs_chunks)/16)
-		
-		#loop through and make the figures one at a time.  The stack will be figure 0.
-		
-		for x in range(0,n_figs+0):
-		
-			#make a figure
-		
-			plt.figure(x+1)			
-			
-			#now we loop over the appropriate range of chunks
-			
-			chunk_range = np.arange(0,16) + x*16
-			
-			#Generate a grid specification for a 4x4 plot
-			
-			gs = gridspec.GridSpec(4,4)
-			
-			#Now, we add subplots at the [row,column] we want in that grid
-			
-			ax1 = plt.subplot(gs[0,0])
-			ax2 = plt.subplot(gs[0,1])
-			ax3 = plt.subplot(gs[0,2])
-			ax4 = plt.subplot(gs[0,3])
-			ax5 = plt.subplot(gs[1,0])
-			ax6 = plt.subplot(gs[1,1])
-			ax7 = plt.subplot(gs[1,2])
-			ax8 = plt.subplot(gs[1,3])
-			ax9 = plt.subplot(gs[2,0])
-			ax10 = plt.subplot(gs[2,1])
-			ax11 = plt.subplot(gs[2,2])
-			ax12 = plt.subplot(gs[2,3])
-			ax13 = plt.subplot(gs[3,0])
-			ax14 = plt.subplot(gs[3,1])
-			ax15 = plt.subplot(gs[3,2])
-			ax16 = plt.subplot(gs[3,3])
-			
-			#make a list so we can iterate over these
-			
-			axes = [ax1,ax2,ax3,ax4,ax5,ax6,ax7,ax8,ax9,ax10,ax11,ax12,ax13,ax14,ax15,ax16]
-			
-			#loop through and set the axis settings and the data to show
-			
-			for y in range(len(axes)):
-			
-				#get the current axis (cax) we're working with
-				
-				cax = axes[y]
-				
-				#get the chunk we're working with.  If we're over the limit, just be done with it.
-				
-				if chunk_range[y] > len(obs_list)-1:
-				
-					continue
-				
-				chunk = obs_list[chunk_range[y]]
-				
-				#set the color according to whether it was flagged
-				
-				if chunk.flag is True:
-				
-					color = 'red'
-					
-				else:
-				
-					color = 'black'
-					
-				if fix_y is not False:
-				
-					cax.set_ylim(fix_y[0],fix_y[1])
-				
-				cax.plot(chunk.frequency,chunk.intensity,color=color)
-				
-				if plot_sim_chunks is True:
-				
-					cax.plot(chunk.freq_sim,chunk.int_sim,color='green')
-				
-				cax.annotate('[{}]' .format(chunk.tag), xy=(0.1,0.8), xycoords='axes fraction', color=color)
-				
-				cax.locator_params(nbins=3) #Use only 3 actual numbers on the x-axis
-				
-				cax.get_xaxis().get_major_formatter().set_scientific(False) #Don't let the x-axis go into scientific notation
-				cax.get_xaxis().get_major_formatter().set_useOffset(False)		
-				
-			plt.tight_layout()
-			
-			plt.show()				
-										
+	SNR = np.amax(int_mf)
+	min_val = np.amin(int_mf)
 	
-	#Plot the stack
+	#plotting!	
 	
-	nflags = 0
-	nlines = 0
+	plt.close(fig='mf')
 	
-	for obs in obs_list:
+	fig = plt.figure(num='mf',figsize=figsize)
 	
-		if obs.flag is True:
-		
-			nflags += 1
-		
-		else:
-		
-			nlines += 1
-			
-	SNR = max(int_avg)	
-	min_val = min(int_avg)	
-	
-	plt.close(fig='stack')	
-	
-	fig = plt.figure(num='stack',figsize=figsize)
 	ax_s = fig.add_subplot(111)
 
 	minorLocator = AutoMinorLocator(5)
 	plt.xlabel('Velocity (km/s)')
-	plt.ylabel('SNR')
+	plt.ylabel('Impulse Response ($\sigma$)')
 
 	plt.locator_params(nbins=4) #Use only 4 actual numbers on the x-axis
 	ax_s.xaxis.set_minor_locator(minorLocator) #Let the program calculate some minor ticks from that
@@ -4335,34 +5028,26 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	ax_s.get_xaxis().get_major_formatter().set_scientific(False) #Don't let the x-axis go into scientific notation
 	ax_s.get_xaxis().get_major_formatter().set_useOffset(False)
 	
-	if ylims != None:
+	if SNR < 10:
 	
-		ax_s.set_ylim([ylims[0],ylims[1]])
-	
-	elif SNR < 10:
-	
-		ax_s.set_ylim([min_val*1.1,10])
+		ax_s.set_ylim([-4,12])
 	
 	else:
 	
-		ax_s.set_ylim([-0.1*SNR,1.1*SNR])
+		ax_s.set_ylim([-4,1.3*SNR])
 	
-	if line_stats is True:
-	
-		ax_s.annotate('{} Lines Stacked\n{} Lines Rejected\nSNR: {:.1f}' .format(nlines,nflags,SNR), xy=(0.1,0.8), xycoords='axes fraction',label='legend')
-		
 	if plotlabel != None:
 	
 		align_arg = {'ha' : 'right'}
 	
-		ax_s.annotate(plotlabel, xy=(0.95,0.85), xycoords='axes fraction', color='black', **align_arg)					
+		ax_s.annotate(plotlabel, xy=(0.95,0.75), xycoords='axes fraction', color='black', **align_arg)
 
-	ax_s.plot(velocity_avg,int_avg,color='black',label='stacked',zorder=5,linewidth=thick,drawstyle='steps')
+	ax_s.plot(velocity_avg,int_mf,color='black',label='mf',zorder=5,linewidth=thick,drawstyle='steps')
 	
-	if plot_sim_stack is True:
+	align_arg = {'ha' : 'right'}
 	
-		ax_s.plot(velocity_avg,int_sim_avg,color='red',label='simulation',zorder=10,linewidth=thick,drawstyle='steps')
-	
+	ax_s.annotate('Peak Impulse Response: {:.1f}$\sigma$' .format(SNR), xy=(0.95,0.85), xycoords='axes fraction', color='black', **align_arg)	
+		
 	#add some minor ticks
 	
 	ax_s.minorticks_on()
@@ -4375,68 +5060,30 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	ax_s.yaxis.set_ticks_position('both')
 	ax_s.xaxis.set_ticks_position('both')
 	
-	#load into globals
+	global velocity_mf,intensity_mf
 	
-	global vel_stacked,int_stacked
+	velocity_mf = np.copy(velocity_avg)
+	intensity_mf = np.copy(int_mf)	
 	
-	vel_stacked = np.copy(velocity_avg)
-	int_stacked = np.copy(int_avg)
+	if mf_out is not None:
+
+		if npz_out is False:
 	
-	#deal with calculating integrated sigmas now.  If we aren't going to do it, we're just done.  clean up and return
-	
-	if calc_sigma is False:
-	
-		plt.show()
+			with open (mf_out, 'w') as output:
 		
-		if pdf is not False:
-	
-			plt.savefig(pdf,format='pdf',transparent=True,bbox_inches='tight')
-	
-		return
-		
-	#Otherwise, we find the indices for the given velocity range.  Ranges are specified in the calc_sigma = [0,1,2,3], where 0 and 1 are the lower and upper limits to the line you want to integrate, and 2 and 3 are the lower and upper limits for the region the noise is taken from.
-	
-	line_l_idx = find_nearest(velocity_avg,calc_sigma[0])
-	line_u_idx = find_nearest(velocity_avg,calc_sigma[1])
-	
-	noise_l_idx = find_nearest(velocity_avg,calc_sigma[2])
-	noise_u_idx = find_nearest(velocity_avg,calc_sigma[3])
-	
-	#get sigma from the noise
-	
-	sigma = get_rms(int_avg[noise_l_idx:noise_u_idx])
-	
-	#calculate the snr
+				for x in range(len(velocity_mf)):
 			
-	snr = np.sum(int_avg[line_l_idx:line_u_idx])/(sigma*np.sqrt(len(int_avg[line_l_idx:line_u_idx])))
+					output.write('{} {}\n' .format(velocity_mf[x],intensity_mf[x]))
+				
+		else:
 	
-	#if we aren't adding this to the graph, print the result
-	
-	if label_sigma is False:
-	
-		print('The SNR of the line integrated from {} - {} km/s is {} sigma.' .format(calc_sigma[0],calc_sigma[1],snr))
-		
-	#if we are labeling it, then do that	
-		
-	if label_sigma is True:
-	
-		align_arg = {'ha' : 'right'}
-	
-		ax_s.annotate('Int. SNR: {:.1f}$\sigma$' .format(snr), xy=(0.95,0.75), xycoords='axes fraction', color='black', **align_arg)	
-	
-	#if we're plotting the range we integrated over, do that	
-		
-	if plot_sigma is True:
-	
-		plt.axvspan(calc_sigma[0], calc_sigma[1], alpha=0.05, color='blue',zorder=0)
-		plt.axvline(x=calc_sigma[0],alpha=0.2,color='blue',zorder=0)
-		plt.axvline(x=calc_sigma[1],alpha=0.2,color='blue',zorder=0)				
-	
+			np.savez(mf_out,velocity_mf=velocity_mf,intensity_mf=intensity_mf)
+			
 	plt.show()
 	
-	if pdf is not False:
+	if mf_pdf is not False:
 	
-		plt.savefig(pdf,format='pdf',transparent=True,bbox_inches='tight')	
+		plt.savefig(mf_pdf,format='pdf',transparent=True,bbox_inches='tight')							
 	
 	return
 
@@ -4903,6 +5550,19 @@ def get_rms(intensity):
 	dummy_sqrd = np.copy(noise)
 	dummy_sqrd = np.square(dummy_sqrd)
 	noise_rms = np.sqrt(np.nanmean(dummy_sqrd))
+	
+	for chan in np.where(dummy_ints < (dummy_mean - noise_rms*4))[0]:
+		noise[chan-2:chan+2] = np.nan
+
+	for chan in np.where(dummy_ints > (dummy_mean + noise_rms*4))[0]:
+		noise[chan-2:chan+2] = np.nan	
+		
+	noise_mean = np.nanmean(noise)
+	noise_std = np.nanstd(np.real(noise))
+
+	dummy_sqrd = np.copy(noise)
+	dummy_sqrd = np.square(dummy_sqrd)
+	noise_rms = np.sqrt(np.nanmean(dummy_sqrd))		
 
 	return	noise_rms
 
@@ -5258,8 +5918,7 @@ def make_postage_plot(PP):
 				
 				freq_sim_tmp = np.copy(new_freq)
 				int_sim_tmp = np.copy(new_int)		
-			
-			
+						
 		#dealing with alternative plotting and then add everything to the plot, using specified values
 				
 			if PP.GHz is True:
@@ -5293,7 +5952,128 @@ def make_postage_plot(PP):
 				if PP.plot_error is True:
 				
 					cax.errorbar(PS.cfreq,max_int/2,xerr=PS.error,color=PP.error_bar_color,zorder=3,linewidth=PP.error_bar_thick,fmt='none',capsize=PP.error_cap_size,alpha=0.5,capthick=PP.error_bar_thick)
+		
+		#loop over all the stored simulations we're being asked to plot
+	
+		for z1,z2,z3 in zip(PP.stored,PP.stored_thick,PP.stored_color):
+	
+			#find the closest values in the simulation for these
+	
+			l_idx = find_nearest(sim[z1].freq_sim,ll)
+			u_idx = find_nearest(sim[z1].freq_sim,ul)	
+		
+			#chunk everything out based on that
+	
+			freq_sim_tmp = np.copy(sim[z1].freq_sim[l_idx:u_idx])
+			int_sim_tmp = np.copy(sim[z1].int_sim[l_idx:u_idx])
+		
+			#if we are resampling, do that now
+	
+			if PP.v_res is not None:
+	
+				#calculate the new resolution in MHz
+		
+				df = PP.v_res*cfreq/ckm
+		
+				#generate a new frequency array
+		
+				new_freq = np.arange(ll,ul,df)
+		
+				#interpolate the intensity data onto this
+		
+				new_int = np.interp(new_freq,freq_sim_tmp,int_sim_tmp,left=np.nan,right=np.nan)
+		
+				#set these back in
+		
+				freq_sim_tmp = np.copy(new_freq)
+				int_sim_tmp = np.copy(new_int)
+	
+			#dealing with alternative plotting and then add everything to the plot, using specified values
 				
+			if PP.GHz is True:
+
+				freq_sim_tmp *= 1000
+				
+			if PP.milli is True:
+			
+				int_sim_tmp *= 1000
+				
+			max_int = np.nanmax(int_sim_tmp)
+			
+				
+			if PP.velocity is True:			
+			
+				velocity_sim_tmp = np.zeros_like(freq_sim_tmp)
+			
+				velocity_sim_tmp += (freq_sim_tmp - cfreq)*ckm/cfreq
+				
+				cax.plot(velocity_sim_tmp,int_sim_tmp,color=z3,drawstyle=PP.sim_draw,zorder=2,linewidth=z2)	
+							
+			else:
+			
+				cax.plot(freq_sim_tmp,int_sim_tmp,color=z3,drawstyle=PP.sim_draw,zorder=2,linewidth=z2)
+		
+		#Next the sum
+		
+		if PP.sum is True:
+				
+			#find the closest values in the simulation for these
+			
+			l_idx = find_nearest(freq_sum,ll)
+			u_idx = find_nearest(freq_sum,ul)
+			
+			#chunk everything out based on that
+			
+			freq_sim_tmp = np.copy(freq_sum[l_idx:u_idx])
+			int_sim_tmp = np.copy(int_sum[l_idx:u_idx])	
+			
+			#if we are resampling, do that now
+			
+			if PP.v_res is not None:
+			
+				#calculate the new resolution in MHz
+				
+				df = PP.v_res*cfreq/ckm
+				
+				#generate a new frequency array
+				
+				new_freq = np.arange(ll,ul,df)
+				
+				#interpolate the intensity data onto this
+				
+				new_int = np.interp(new_freq,freq_sim_tmp,int_sim_tmp,left=np.nan,right=np.nan)
+				
+				#set these back in
+				
+				freq_sim_tmp = np.copy(new_freq)
+				int_sim_tmp = np.copy(new_int)		
+						
+		#dealing with alternative plotting and then add everything to the plot, using specified values
+				
+			if PP.GHz is True:
+
+				freq_sim_tmp *= 1000
+				
+			if PP.milli is True:
+			
+				int_sim_tmp *= 1000
+				
+			max_int = np.nanmax(int_sim_tmp)
+			
+				
+				
+			if PP.velocity is True:			
+			
+				velocity_sim_tmp = np.zeros_like(freq_sim_tmp)
+			
+				velocity_sim_tmp += (freq_sim_tmp - cfreq)*ckm/cfreq
+				
+				cax.plot(velocity_sim_tmp,int_sim_tmp,color=PP.sum_color,drawstyle=PP.sum_style,zorder=2,linewidth=PP.sum_thick)	
+				
+			else:
+			
+				cax.plot(freq_sim_tmp,int_sim_tmp,color=PP.sum_color,drawstyle=PP.sum_style,zorder=2,linewidth=PP.sum_thick)
+						
 		#Annotate the thing, if one has been provided
 		
 		if PS.label != None:
@@ -6798,7 +7578,7 @@ class ObsChunk(object):
 		
 class PostagePlot(object):
 
-	def __init__(self,lines,nwidths=40,ylims=None,velocity=False,pdf=False,obs=True,sim=True,nrows=None,ncols=None,obs_color='Black',sim_color='Red',obs_draw='steps',sim_draw='steps',title=None,GHz=False,xticks=3,yticks=3,xlabel=None,ylabel=None,milli=False,vlsr=vlsr,v_res=None,figsize=None,labels_size=18,lower_left_only=False,obs_thick=1.0,sim_thick=1.0,error_bar_color='blue',error_bar_thick=1.0,plot_error=False,error_cap_size=2.):
+	def __init__(self,lines,nwidths=40,ylims=None,velocity=False,pdf=False,obs=True,sim=True,nrows=None,ncols=None,obs_color='Black',sim_color='Red',obs_draw='steps',sim_draw='steps',title=None,GHz=False,xticks=3,yticks=3,xlabel=None,ylabel=None,milli=False,vlsr=vlsr,v_res=None,figsize=None,labels_size=18,lower_left_only=False,obs_thick=1.0,sim_thick=1.0,error_bar_color='blue',error_bar_thick=1.0,plot_error=False,error_cap_size=2.,stored=[],stored_thick=[],stored_color=[],sum=False,sum_color='lime',sum_thick=1.,sum_style='steps'):
 	
 		self.lines = lines
 		self.nwidths = nwidths
@@ -6831,6 +7611,13 @@ class PostagePlot(object):
 		self.error_bar_thick = error_bar_thick
 		self.error_cap_size = error_cap_size
 		self.plot_error = plot_error
+		self.stored = stored
+		self.stored_thick = stored_thick
+		self.stored_color = stored_color
+		self.sum = sum
+		self.sum_color = sum_color
+		self.sum_thick = sum_thick
+		self.sum_style = sum_style
 		
 		return
 		
