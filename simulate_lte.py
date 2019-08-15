@@ -73,7 +73,7 @@
 # 6.33 - updates flux simulation calculation; does not consider 'beam dilution' in these cases
 # 6.34 - adds numpy saving and loading for observations
 # 6.35 - adds creation of matched filter plot to velocity_stack
-
+# 6.36 - saves tau information for stacking / summing
 
 #############################################################
 #							Preamble						#
@@ -113,7 +113,7 @@ matplotlib.rc('text.latex',preamble=r'\usepackage{cmbright}')
 
 
 
-version = 6.35
+version = 6.36
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -263,6 +263,7 @@ int_obs = []
 
 freq_sim = [] #to hold simulated spectra
 int_sim = [] 
+int_tau = []
 
 freq_sum = [] #to hold combined spectra
 int_sum = []
@@ -1529,7 +1530,7 @@ def run_sim(freq,intensity,T,dV,C,tau_get=None):
 	
 	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs)
 	
-	Nl = C * (2*qn7 + 1) * np.exp(-elower/(0.695 * T)) / Q
+	Nl = C * glow * np.exp(-elower/(0.695 * T)) / Q
 	
 	nl_print = trim_array(Nl,frequency,ll,ul)
 	
@@ -1545,7 +1546,7 @@ def run_sim(freq,intensity,T,dV,C,tau_get=None):
 # 	print(tau_numerator_print)
 # 	print('+++++++++++++++++++++\n')
 	
-	tau_denominator = np.asarray(8 * np.pi * (dV * frequency * 10**6 / ckm) * (2*qn7 + 1),dtype=float)
+	tau_denominator = np.asarray(8 * np.pi * (dV * frequency * 10**6 / ckm) * glow,dtype=float)
 	
 	tau_denominator_print = trim_array(tau_denominator,frequency,ll,ul)
 	
@@ -1573,9 +1574,18 @@ def run_sim(freq,intensity,T,dV,C,tau_get=None):
 	
 	freq_tmp = trim_array(freq,frequency,ll,ul)
 	
-	if planck is False:
+	with open('tau_vlsr_{:.3f}.txt' .format(vlsr), 'w') as output:
 	
-		int_temp = apply_beam(freq_tmp,int_temp,source_size,dish_size,synth_beam,interferometer)
+		for x in range(len(freq_tmp)):
+		
+			output.write('{:.4f} {:.4f}\n' .format(freq_tmp[x],int_temp[x]))
+
+#	removed because dilution should be calculated as an end step	
+# 	if planck is False:
+# 	
+# 		int_temp = apply_beam(freq_tmp,int_temp,source_size,dish_size,synth_beam,interferometer)
+		
+	int_tau = np.copy(int_temp)		
 	
 	if gauss == True:
 
@@ -1592,6 +1602,8 @@ def run_sim(freq,intensity,T,dV,C,tau_get=None):
 		J_Tbg = (h*freq_sim*10**6/k)*(np.exp(((h*freq_sim*10**6)/(k*Tbg))) -1)**-1
 		
 		int_sim = (J_T - J_Tbg)*(1 - np.exp(-int_temp))/eta
+		
+	int_sim = apply_beam(freq_sim,int_sim,source_size,dish_size,synth_beam,interferometer)
 		
 	if planck == True:
 	
@@ -1619,7 +1631,7 @@ def run_sim(freq,intensity,T,dV,C,tau_get=None):
 		
 		int_sim = int_jansky
 		
-	return freq_sim,int_sim
+	return freq_sim,int_sim,int_tau
 	
 #check_Q prints out Q at a given temperature x
 
@@ -1725,7 +1737,7 @@ def modT(x):
 		print('x needs to be a number.')
 		return
 		
-	global T,freq_sim,int_sim
+	global T,freq_sim,int_sim,int_tau
 		
 	T = float(x)
 		
@@ -1733,7 +1745,7 @@ def modT(x):
 	
 	freq_tmp += (-vlsr)*freq_tmp/ckm		
 	
-	freq_sim,int_sim = run_sim(freq_tmp,intensity,T,dV,C)
+	freq_sim,int_sim,int_tau = run_sim(freq_tmp,intensity,T,dV,C)
 	
 	clear_line('current')
 	
@@ -1766,7 +1778,7 @@ def modC(x):
 		print('x needs to be a number.')
 		return
 		
-	global C,freq_sim,int_sim
+	global C,freq_sim,int_sim,int_tau
 		
 	C = x
 		
@@ -1774,7 +1786,7 @@ def modC(x):
 	
 	freq_tmp += (-vlsr)*freq_tmp/ckm		
 	
-	freq_sim,int_sim = run_sim(freq_tmp,intensity,T,dV,C)
+	freq_sim,int_sim,int_tau = run_sim(freq_tmp,intensity,T,dV,C)
 	
 	clear_line('current')
 	
@@ -1813,7 +1825,7 @@ def moddV(x):
 		print('dV needs to be a number.')
 		return
 		
-	global dV,freq_sim,int_sim
+	global dV,freq_sim,int_sim,int_tau
 	
 	dV = x
 	
@@ -1821,7 +1833,7 @@ def moddV(x):
 	
 	freq_tmp += (-vlsr)*freq_tmp/ckm		
 		
-	freq_sim,int_sim = run_sim(freq_tmp,intensity,T,dV,C)
+	freq_sim,int_sim,int_tau = run_sim(freq_tmp,intensity,T,dV,C)
 	
 	clear_line('current')
 	
@@ -1854,7 +1866,7 @@ def modVLSR(x):
 		print('vlsr needs to be a number.')
 		return	
 		
-	global vlsr,freq_sim,int_sim,frequency
+	global vlsr,freq_sim,int_sim,frequency,int_tau
 	
 	vlsr = x
 		
@@ -1862,7 +1874,7 @@ def modVLSR(x):
 	
 	freq_tmp += (-vlsr)*freq_tmp/ckm		
 	
-	freq_sim,int_sim = run_sim(freq_tmp,intensity,T,dV,C)
+	freq_sim,int_sim,int_tau = run_sim(freq_tmp,intensity,T,dV,C)
 	
 	clear_line('current')
 	
@@ -2138,7 +2150,7 @@ def store(x=None):
 	
 		x = '{}' .format(catalog_file.split('.')[0].strip('\n').split('/')[-1]) 
 	
-	sim[x] = Molecule(x,catalog_file,tag,gup,dof,error,qn1,qn2,qn3,qn4,qn5,qn6,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim,aij,sijmu,vibs)
+	sim[x] = Molecule(x,catalog_file,tag,gup,glow,dof,error,qn1,qn2,qn3,qn4,qn5,qn6,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim,int_tau,aij,sijmu,vibs)
 	
 	if auto_update == True:
 	
@@ -2160,7 +2172,7 @@ def recall(x):
 
 	save_results('last.results')
 
-	global elower,eupper,qns,logint,qn1,qn2,qn3,qn4,qn5,qn6,qn7,qn8,qn9,qn10,qn11,qn12,S,dV,T,vlsr,frequency,freq_sim,intensity,int_sim,current,catalog_file,sijmu,C,tag,gup,error,aij,vibs
+	global elower,eupper,qns,logint,qn1,qn2,qn3,qn4,qn5,qn6,qn7,qn8,qn9,qn10,qn11,qn12,S,dV,T,vlsr,frequency,freq_sim,intensity,int_sim,current,catalog_file,sijmu,C,tag,gup,error,aij,vibs,int_tau
 	
 	current = sim[x].name
 	elower = sim[x].elower
@@ -2207,7 +2219,7 @@ def recall(x):
 	
 	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file,vibs)
 	
-	freq_sim,int_sim=run_sim(tmp_freq,intensity,T,dV,C)	
+	freq_sim,int_sim,int_tau = run_sim(tmp_freq,intensity,T,dV,C)	
 		
 	if gauss == False:
 
@@ -2280,7 +2292,7 @@ def load_mol(x,format='spcat',vib_states=None):
 	loads a new molecule into the system.  Make sure to store the old molecule simulation first, if you want to get it back.  The current graph will be updated with the new molecule.  Catalog file must be given as a string.  Simulation will begin with the same T, dV, C, vlsr as previous, so change those first if you want.
 	'''
 
-	global frequency,logint,error,dof,gup,tag,qn1,qn2,qn3,qn4,qn5,qn6,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,first_run,sijmu,gauss,aij,vibs
+	global frequency,logint,error,dof,gup,glow,tag,qn1,qn2,qn3,qn4,qn5,qn6,qn7,qn8,qn9,qn10,qn11,qn12,elower,eupper,intensity,qns,catalog,catalog_file,fig,current,fig,ax,freq_sim,int_sim,first_run,sijmu,gauss,aij,vibs,int_tau
 	
 	current = x
 	
@@ -2317,37 +2329,6 @@ def load_mol(x,format='spcat',vib_states=None):
 	qn12 = np.asarray(catalog[19])
 	vibs = vib_states
 
-#For future implementation of screening by error:
-	
-# 	mask = np.ones(len(frequency),dtype=bool)
-# 
-# 	for x in range(len(error)):
-# 
-# 		if error[x] > 0.1:
-# 	
-# 			mask[x] = False
-# 		
-# 	frequency = frequency[mask]
-# 	error = error[mask]
-# 	logint = logint[mask]
-# 	dof = dof[mask]
-# 	elower = elower[mask]
-# 	gup = gup[mask]
-# 	tag = tag[mask]
-# 	qnformat = qnformat[mask]
-# 	qn1 = qn1[mask]
-# 	qn2 = qn2[mask]
-# 	qn3 = qn3[mask]
-# 	qn4 = qn4[mask]
-# 	qn5 = qn5[mask]
-# 	qn6 = qn6[mask]
-# 	qn7 = qn7[mask]
-# 	qn8 = qn8[mask]
-# 	qn9 = qn9[mask]
-# 	qn10 = qn10[mask]
-# 	qn11 = qn11[mask]
-# 	qn12 = qn12[mask]
-
 	eupper = np.copy(elower)
 
 	eupper = elower + frequency/29979.2458
@@ -2361,6 +2342,44 @@ def load_mol(x,format='spcat',vib_states=None):
 	tmp_freq += (-vlsr)*tmp_freq/ckm
 	
 	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file,vibs=None)
+	
+	#generate a unique set of energy levels as defined by quantum numbers
+	
+	#first, we'll make a new array and it will hold an array of qns for upper states that we'll use to match things
+	
+	ustate_qns = np.empty_like(qn1)
+	
+	#now loop through all the lines and populate ustate_qns with an entry in the format of [[qn1,qn2,qn3,qn4,qn5,qn6],gup]
+	
+	for x in range(len(frequency)):
+	
+		ustate_qns[x] = np.array([qn1[x],qn2[x],qn3[x],qn4[x],qn5[x],qn6[x]])
+		
+	#now we make an array for glow and do matching for each line to find where the lower state qns match an entry in ustate_qns
+	
+	glow = np.empty_like(qn1)
+	
+	for x in range(len(frequency)):
+	
+		#for each line, make an array to match to ustate_qns
+		
+		lstate_qns = np.array([qn7[x],qn8[x],qn9[x],qn10[x],qn11[x],qn12[x]])
+		
+		#find where in the ustate_qns that sequence is located by doing a truth product
+		
+		truth_array = np.array([np.array_equal(x, lstate_qns) for x in ustate_qns])
+		
+		#we might be in a lower state that is the ground state and so will never have an entry in ustates...
+		
+		if True not in truth_array:
+		
+			glow[x] = 1
+			
+		else:
+			
+			idx = np.where(truth_array == True)[0][0]
+		
+			glow[x] = gup[idx]
 
 	#from CDMS website
 
@@ -2373,7 +2392,7 @@ def load_mol(x,format='spcat',vib_states=None):
 	
 	print('A value of Q({}) = {} was used to calculated the Sijmu^2 and Aij values for this species.' .format(int(CT),int(Q)))
 	
-	freq_sim,int_sim=run_sim(tmp_freq,intensity,T,dV,C)
+	freq_sim,int_sim,int_tau=run_sim(tmp_freq,intensity,T,dV,C)
 	
 	# if gauss == True:
 # 	
@@ -2529,7 +2548,7 @@ def status():
 	print('gauss: \t {}' .format(gauss))
 	print('thermal: \t {}' .format(thermal))
 		
-#sum_stored creates a combined spectrum of all stored molecule simulations and stores it in freq_sum and int_sum.  This might take a while.  It's done from scratch because the frequency axes in freq_sim stored for each molecule will not necessarily be the same, so co-adding is difficult without re-gridding, which well, maybe later.	
+#sum_stored_thin creates a combined spectrum of all stored molecule simulations and stores it in freq_sum and int_sum.  This might take a while.  It's done from scratch because the frequency axes in freq_sim stored for each molecule will not necessarily be the same, so co-adding is difficult without re-gridding, which well, maybe later.	
 
 def sum_stored_thin():
 
@@ -2588,6 +2607,80 @@ def sum_stored_thin():
 		int_sum += int_chunk
 		
 	overplot_sum()
+	
+#sum_stored_thick tries to do a summation using the tau values that have been stored
+
+def sum_stored_thick():
+
+	'''
+	Creates a combined spectrum of all stored molecule simulations and stores it in freq_sum and int_sum.  This might take a while.
+	'''
+	
+	global freq_sum,int_sum
+	
+	#first, we need to be intelligent about how we set the limits for the sum - they should cover the entirety of the summed frequency simulations, but not more.  We can do that by adding all those together and running an find_limits function on them.
+	
+	total_sim_freqs = []
+	
+	#loop through all the stored simulations and add their frequency axes into total_sim_freqs
+	
+	for x in sim:
+	
+		total_sim_freqs.extend(sim[x].freq_sim)
+	
+		#total_sim_freqs = np.concatenate((total_sim_freqs,sim[x].freq_sim),axis=None)
+		
+	#make that a numpy array
+	
+	total_sim_freqs = np.asarray(total_sim_freqs)
+		
+	#sort that
+	
+	total_sim_freqs = np.sort(total_sim_freqs)
+	
+	#now run a limit finder
+	
+	sum_ll,sum_ul = find_limits(total_sim_freqs)
+	
+	#now we make a new frequency array running between these limits at spacing res
+	
+	freq_sum = []
+	
+	for x,y in zip(sum_ll,sum_ul):
+	
+		freq_chunk = np.arange(x,y,res)
+	
+		freq_sum = np.concatenate((freq_sum,freq_chunk),axis=None)
+		
+	freq_sum = np.sort(freq_sum)
+		
+	#now we make an intensity array
+	
+	int_sum = np.zeros_like(freq_sum)
+	
+	#loop through all the stored simulations, regrid them onto freq_sum, and add to int_sum
+	
+	for x in sim:
+	
+		int_chunk = np.zeros_like(int_sum)
+		
+		freq_tmp = np.copy(sim[x].frequency)
+		
+		freq_trim = trim_array(freq_tmp,sim[x].frequency,ll,ul)
+		
+		freq_trim -= sim[x].vlsr*freq_trim/ckm
+	
+		for y in range(len(sim[x].int_tau)):
+		
+			idx = find_nearest(freq_sum,freq_trim[y])
+			
+			int_chunk[idx] = sim[x].int_tau[y]
+		
+		int_sum += int_chunk
+		
+	freq_sum,int_sum = sim_gaussian(int_sum,freq_sum,dV)
+		
+	overplot_sum()	
 
 #sum_stored creates a combined spectrum of all stored molecule simulations and stores it in freq_sum and int_sum.  This might take a while.  It's done from scratch because the frequency axes in freq_sim stored for each molecule will not necessarily be the same, so co-adding is difficult without re-gridding, which well, maybe later.	
 
@@ -3381,7 +3474,7 @@ def print_lines(mol='current',thresh=float('-inf'),rest=True,mK=False,return_arr
 			
 		#run the simulation to get the intensities
 	
-		freq_tmp,int_tmp = run_sim(frequency,intensity,T,dV,C)
+		freq_tmp,int_tmp,int_tau = run_sim(frequency,intensity,T,dV,C)
 		
 		old_f = np.nan
 		
@@ -3431,7 +3524,8 @@ def print_lines(mol='current',thresh=float('-inf'),rest=True,mK=False,return_arr
 	
 				#gJ = 2*qn1[y][i] + 1
 				
-				gJ = gup[y][0]
+				gu = gup[y][0]
+				gl = glow[y][0]
 				
 				qn_string.strip()
 			
@@ -3456,19 +3550,19 @@ def print_lines(mol='current',thresh=float('-inf'),rest=True,mK=False,return_arr
 					
 						if planck == True:
 							
-							print_array.append('Frequency\tIntensity (mJy)\t{}\tEu (K)   \tgJ\tlog(Aij)\tSijmu^2' .format(qn_str))
+							print_array.append('Frequency\tIntensity (mJy)\t{}\tEu (K)   \tgu\tgl\tlog(Aij)\tSijmu^2' .format(qn_str))
 					
 						else:
 						
-							print_array.append('Frequency\tIntensity (mK)\t{}\tEu (K)   \tgJ\tlog(Aij)\tSijmu^2' .format(qn_str)) 
+							print_array.append('Frequency\tIntensity (mK)\t{}\tEu (K)   \tgu\tgl\tlog(Aij)\tSijmu^2' .format(qn_str)) 
 											
 					elif planck == True:
 					
-						print_array.append('Frequency\tIntensity (Jy)\t{}\tEu (K)   \tgJ\tlog(Aij)\tSijmu^2' .format(qn_str))
+						print_array.append('Frequency\tIntensity (Jy)\t{}\tEu (K)   \tgu\tgl\tlog(Aij)\tSijmu^2' .format(qn_str))
 						
 					else:
 					
-						print_array.append('Frequency\tIntensity (K)\t{}\tEu (K)   \tgJ\tlog(Aij)\tSijmu^2' .format(qn_str))
+						print_array.append('Frequency\tIntensity (K)\t{}\tEu (K)   \tgu\tgl\tlog(Aij)\tSijmu^2' .format(qn_str))
 					
 						
 			
@@ -3482,11 +3576,11 @@ def print_lines(mol='current',thresh=float('-inf'),rest=True,mK=False,return_arr
 	
 					if mK == True:
 					
-						print_array.append('{:.4f}\t{:<13.3f}\t{}\t{:<9.3f}\t{}\t{:.2f}    \t{:.4f}' .format(frequency_tmp_shift,int_tmp[x]*1000,qn_string,eupper[y][i]/0.695,gJ,np.log10(aij[y][i]),sijmu[y][i]))
+						print_array.append('{:.4f}\t{:<13.3f}\t{}\t{:<9.3f}\t{}\t{}\t{:.2f}    \t{:.4f}' .format(frequency_tmp_shift,int_tmp[x]*1000,qn_string,eupper[y][i]/0.695,gu,gl,np.log10(aij[y][i]),sijmu[y][i]))
 						
 					else:
 					
-						print_array.append('{:.4f}\t{:<13.3f}\t{}\t{:<9.3f}\t{}\t{:.2f}    \t{:.4f}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper[y][i]/0.695,gJ,np.log10(aij[y][i]),sijmu[y][i]))
+						print_array.append('{:.4f}\t{:<13.3f}\t{}\t{:<9.3f}\t{}\t{}\t{:.2f}    \t{:.4f}' .format(frequency_tmp_shift,int_tmp[x],qn_string,eupper[y][i]/0.695,gu,gl,np.log10(aij[y][i]),sijmu[y][i]))
 				
 				else:
 
@@ -3497,11 +3591,11 @@ def print_lines(mol='current',thresh=float('-inf'),rest=True,mK=False,return_arr
 					
 					if mK == True:
 					
-						print_array.append('{:.4f}\t{:<13.3f}\t{}\t{:<9.3f}\t{}\t{:.2f}    \t{:.4f}' .format(frequency[y][i],int_tmp[x]*1000,qn_string,eupper[y][i]/0.695,gJ,np.log10(aij[y][i]),sijmu[y][i]))
+						print_array.append('{:.4f}\t{:<13.3f}\t{}\t{:<9.3f}\t{}\t{}\t{:.2f}    \t{:.4f}' .format(frequency[y][i],int_tmp[x]*1000,qn_string,eupper[y][i]/0.695,gu,gl,np.log10(aij[y][i]),sijmu[y][i]))
 						
 					else:
 					
-						print_array.append('{:.4f}\t{:<13.3f}\t{}\t{:<9.3f}\t{}\t{:.2f}    \t{:.4f}' .format(frequency[y][i],int_tmp[x],qn_string,eupper[y][i]/0.695,gJ,np.log10(aij[y][i]),sijmu[y][i]))
+						print_array.append('{:.4f}\t{:<13.3f}\t{}\t{:<9.3f}\t{}\t{}\t{:.2f}    \t{:.4f}' .format(frequency[y][i],int_tmp[x],qn_string,eupper[y][i]/0.695,gu,gl,np.log10(aij[y][i]),sijmu[y][i]))
 					
 				old_f = freq_tmp[x]	
 						
@@ -4301,13 +4395,13 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 
 	#now we have to figure out the weights for the arrays.  We start by finding the maximum line height, and scaling all of them so that the largest value is 1, excepting anything we've flagged.
 	
-	peaks = []
-	
-	for obs in obs_list:
-	
-		if obs.flag is False:
-		
-			peaks.append(obs.weight)
+# 	peaks = []
+# 	
+# 	for obs in obs_list:
+# 	
+# 		if obs.flag is False:
+# 		
+# 			peaks.append(obs.weight)
 		
 	max_int = max(peak_ints)
 		
@@ -4536,8 +4630,8 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 		
 			nlines += 1
 			
-	SNR = max(int_avg)	
-	min_val = min(int_avg)	
+	SNR = np.nanmax(int_avg)	
+	min_val = np.nanmin(int_avg)	
 	
 	plt.close(fig='stack')	
 	
@@ -4601,7 +4695,7 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	
 	vel_stacked = np.copy(velocity_avg)
 	int_stacked = np.copy(int_avg)
-	
+
 	#write anything out as requested
 	
 	if stack_out is not None:
@@ -5001,7 +5095,15 @@ def filter_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = 
 	
 	int_mf = np.convolve(int_avg,int_sim_avg,mode='same')
 	
-	mf_rms = get_rms(int_mf)
+	#blank out the central channels for doing the rms
+	
+	len_mf = len(int_mf)
+	
+	int_mf_tmp = np.copy(int_mf)
+	
+	int_mf_tmp[int(0.375*len_mf):int(0.625*len_mf)] = np.nan
+	
+	mf_rms = get_rms(int_mf_tmp)
 	
 	int_mf /= mf_rms
 	
@@ -5493,13 +5595,13 @@ def update():
 	A general call to just re-run the simulation, if the user has modified any generalized variables themselves like Tbg stuff, or updated vlsr or dV, etc, without using mod functions.
 	'''
 
-	global freq_sim,int_sim
+	global freq_sim,int_sim,int_tau
 		
 	freq_tmp = np.copy(frequency)
 	
 	freq_tmp += (-vlsr)*freq_tmp/ckm		
 	
-	freq_sim,int_sim = run_sim(freq_tmp,intensity,T,dV,C)
+	freq_sim,int_sim,int_tau = run_sim(freq_tmp,intensity,T,dV,C)
 	
 	clear_line('current')
 	
@@ -5531,40 +5633,25 @@ def reset_tbg():
 
 #get the rms of the spectrum, at least a good guess at it if it isn't line-confusion limited
 
+
 def get_rms(intensity):
 
-	dummy_ints = np.copy(intensity)
-	noise = np.copy(intensity)
-	dummy_mean = np.nanmean(dummy_ints)
-	dummy_std = np.nanstd(dummy_ints)
-
-	for chan in np.where(dummy_ints < (dummy_mean - dummy_std*4))[0]:
-		noise[chan-10:chan+10] = np.nan
-
-	for chan in np.where(dummy_ints > (dummy_mean + dummy_std*4))[0]:
-		noise[chan-10:chan+10] = np.nan
-
-	noise_mean = np.nanmean(noise)
-	noise_std = np.nanstd(np.real(noise))
-
-	dummy_sqrd = np.copy(noise)
-	dummy_sqrd = np.square(dummy_sqrd)
-	noise_rms = np.sqrt(np.nanmean(dummy_sqrd))
+	tmp_int = np.copy(intensity)
 	
-	for chan in np.where(dummy_ints < (dummy_mean - noise_rms*4))[0]:
-		noise[chan-2:chan+2] = np.nan
-
-	for chan in np.where(dummy_ints > (dummy_mean + noise_rms*4))[0]:
-		noise[chan-2:chan+2] = np.nan	
+	x = np.nanmax(tmp_int)
+	
+	rms = np.sqrt(np.nanmean(np.square(tmp_int)))
+	
+	while x > 5*rms:
+	
+		for chan in np.where(tmp_int > 5*rms)[0]:
+			tmp_int[chan] = np.nan
+			
+		rms = np.sqrt(np.nanmean(np.square(tmp_int)))
 		
-	noise_mean = np.nanmean(noise)
-	noise_std = np.nanstd(np.real(noise))
+		x = np.nanmax(tmp_int)
 
-	dummy_sqrd = np.copy(noise)
-	dummy_sqrd = np.square(dummy_sqrd)
-	noise_rms = np.sqrt(np.nanmean(dummy_sqrd))		
-
-	return	noise_rms
+	return	rms
 
 
 #get the rms from the observations over a specified chunk in frequency space
@@ -7459,12 +7546,13 @@ def print_quickloads():
 
 class Molecule(object):
 
-	def __init__(self,name,catalog_file,tag,gup,dof,error,qn1,qn2,qn3,qn4,qn5,qn6,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim,aij,sijmu,vibs):
+	def __init__(self,name,catalog_file,tag,gup,glow,dof,error,qn1,qn2,qn3,qn4,qn5,qn6,elower,eupper,qns,logint,qn7,qn8,qn9,qn10,qn11,qn12,C,dV,T,CT,vlsr,frequency,freq_sim,intensity,int_sim,int_tau,aij,sijmu,vibs):
 	
 		self.name = name
 		self.catalog_file = catalog_file
 		self.tag = tag
 		self.gup = gup
+		self.glow = glow
 		self.dof = dof
 		self.error = error
 		self.qn1 = qn1
@@ -7492,6 +7580,7 @@ class Molecule(object):
 		self.freq_sim = freq_sim
 		self.intensity = intensity
 		self.int_sim = int_sim
+		self.int_tau = int_tau
 		self.aij = aij
 		self.sijmu = sijmu
 		self.vibs = vibs
