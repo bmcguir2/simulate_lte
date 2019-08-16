@@ -74,6 +74,7 @@
 # 6.34 - adds numpy saving and loading for observations
 # 6.35 - adds creation of matched filter plot to velocity_stack
 # 6.36 - saves tau information for stacking / summing
+# 6.37 - adds glow calculation from loomis
 
 #############################################################
 #							Preamble						#
@@ -113,7 +114,7 @@ matplotlib.rc('text.latex',preamble=r'\usepackage{cmbright}')
 
 
 
-version = 6.36
+version = 6.37
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -2345,41 +2346,21 @@ def load_mol(x,format='spcat',vib_states=None):
 	
 	#generate a unique set of energy levels as defined by quantum numbers
 	
-	#first, we'll make a new array and it will hold an array of qns for upper states that we'll use to match things
+	ustate_qns = np.vstack((qn1, qn2, qn3, qn4, qn5, qn6)).T
 	
-	ustate_qns = np.empty_like(qn1)
+	lstate_qns = np.vstack((qn7, qn8, qn9, qn10, qn11, qn12)).T
 	
-	#now loop through all the lines and populate ustate_qns with an entry in the format of [[qn1,qn2,qn3,qn4,qn5,qn6],gup]
+	ustate_qns_hash = np.sum(ustate_qns*np.array([1,10,100,1000,10000,100000]), axis=1)
 	
-	for x in range(len(frequency)):
+	lstate_qns_hash = np.sum(lstate_qns*np.array([1,10,100,1000,10000,100000]), axis=1)
 	
-		ustate_qns[x] = np.array([qn1[x],qn2[x],qn3[x],qn4[x],qn5[x],qn6[x]])
-		
-	#now we make an array for glow and do matching for each line to find where the lower state qns match an entry in ustate_qns
+	equivalency = np.equal.outer(ustate_qns_hash, lstate_qns_hash)
 	
-	glow = np.empty_like(qn1)
+	idx = np.argmax(equivalency, axis=0)
 	
-	for x in range(len(frequency)):
+	glow = gup[idx]
 	
-		#for each line, make an array to match to ustate_qns
-		
-		lstate_qns = np.array([qn7[x],qn8[x],qn9[x],qn10[x],qn11[x],qn12[x]])
-		
-		#find where in the ustate_qns that sequence is located by doing a truth product
-		
-		truth_array = np.array([np.array_equal(x, lstate_qns) for x in ustate_qns])
-		
-		#we might be in a lower state that is the ground state and so will never have an entry in ustates...
-		
-		if True not in truth_array:
-		
-			glow[x] = 1
-			
-		else:
-			
-			idx = np.where(truth_array == True)[0][0]
-		
-			glow[x] = gup[idx]
+	glow[np.sum(equivalency, axis=0)==0] = 1
 
 	#from CDMS website
 
