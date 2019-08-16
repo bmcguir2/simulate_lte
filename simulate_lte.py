@@ -1575,11 +1575,11 @@ def run_sim(freq,intensity,T,dV,C,tau_get=None):
 	
 	freq_tmp = trim_array(freq,frequency,ll,ul)
 	
-	with open('tau_vlsr_{:.3f}.txt' .format(vlsr), 'w') as output:
-	
-		for x in range(len(freq_tmp)):
-		
-			output.write('{:.4f} {:.4f}\n' .format(freq_tmp[x],int_temp[x]))
+# 	with open('tau_vlsr_{:.3f}.txt' .format(vlsr), 'w') as output:
+# 	
+# 		for x in range(len(freq_tmp)):
+# 		
+# 			output.write('{:.4f} {:.4f}\n' .format(freq_tmp[x],int_temp[x]))
 
 #	removed because dilution should be calculated as an end step	
 # 	if planck is False:
