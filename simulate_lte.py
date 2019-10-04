@@ -75,6 +75,8 @@
 # 6.35 - adds creation of matched filter plot to velocity_stack
 # 6.36 - saves tau information for stacking / summing
 # 6.37 - adds glow calculation from loomis
+# 6.38 - update to matched filter script
+# 6.39 - updates to line flagging in stacking
 
 #############################################################
 #							Preamble						#
@@ -114,14 +116,14 @@ matplotlib.rc('text.latex',preamble=r'\usepackage{cmbright}')
 
 
 
-version = 6.37
+version = 6.39
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
 kcm = 0.69503476 #Boltzmann's constant in cm-1/K
-ckm = 2.998*10**5 #speed of light in km/s
-ccm = 2.998*10**10 #speed of light in cm/s
-cm = 2.998*10**8 #speed of light in m/s
+ckm = 2.99792458*10**5 #speed of light in km/s
+ccm = 2.99792458*10**10 #speed of light in cm/s
+cm = 2.99792458*10**8 #speed of light in m/s
 
 #############################################################
 #							Warning 						#
@@ -258,6 +260,9 @@ tbg_range = []
 
 vel_stacked = [] #to hold velocity-stacked spectra
 int_stacked = []
+
+vel_sim_stacked = [] #to hold velocity-stacked simulated spectra
+int_sim_stacked = []
 
 freq_obs = [] #to hold laboratory or observational spectra
 int_obs = []
@@ -762,36 +767,32 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 
 	Q = np.float64(0.0) #Initialize a float for the partition function
 	
-	if catalog_file=='acetone.cat':
+	if 'acetone.cat' in catalog_file.lower():
 	
 		Q = 2.91296*10**(-7)*T**6 - 0.00021050085*T**5 + 0.05471337*T**4 - 5.5477*T**3 + 245.28*T**2 - 2728.3*T + 16431 #Hard code for Acetone
 		
-	elif catalog_file=='sh.cat':
+	elif 'sh.cat' in catalog_file.lower():
 	
 		Q = 0.000000012549467*T**4 - 0.000008528126823*T**3 + 0.002288160909445*T**2 + 0.069272946237033*T + 15.357239728157400
  #Hard code for SH.  Completely unreliable below 2.735 K or above 300 K.
 
-	elif catalog_file=='h2s.cat':
+	elif 'nh3.cat' in catalog_file.lower():
 	
-		Q = -0.000004859941547*T**3 + 0.005498622332982*T**2 + 0.507648423477309*T - 1.764494755639740 #Hard code for H2S.  Completely unreliable below 2.735 K or above 300 K.
-	
-	elif catalog_file=='hcn.cat':
-	
-		Q = -1.64946939*10**-9*T**4 + 4.62476813*10**-6*T**3 - 1.15188755*10**-3*T**2 + 1.48629408*T + .386550361
-		
+		Q = 0.11044*T**1.5025 + 2.5396
+			
 	elif 'methanol.cat' in catalog_file.lower() or 'ch3oh.cat' in catalog_file.lower() or 'ch3oh_v0.cat' in catalog_file.lower() or 'ch3oh_v1.cat' in catalog_file.lower() or 'ch3oh_v2.cat' in catalog_file.lower() or 'ch3oh_vt.cat' in catalog_file.lower():
 	
 		Q = 4.83410*10**-11*T**6 - 4.04024*10**-8*T**5 + 1.27624*10**-5*T**4 - 1.83807*10**-3*T**3 + 2.05911*10**-1*T**2 + 4.39632*10**-1*T -1.25670
 		
-	elif catalog_file.lower()=='13methanol.cat' or catalog_file.lower()=='13ch3oh.cat':
+	elif '13ch3oh.cat' in catalog_file.lower():
 	
 		Q = 0.000050130*T**3 + 0.076540934*T**2 + 4.317920731*T - 31.876881967
 		
-	elif catalog_file.lower()=='c2n.cat' or catalog_file.lower()=='ccn.cat':
+	elif 'c2n.cat' in catalog_file.lower() or 'ccn.cat' in catalog_file.lower():
 		
 		Q = 1.173755*10**(-11)*T**6 - 1.324086*10**(-8)*T**5 + 5.99936*10**(-6)*T**4 - 1.40473*10**(-3)*T**3 + 0.1837397*T**2 + 7.135161*T + 22.55770
 		
-	elif catalog_file.lower()=='ch2nh.cat':
+	elif 'ch2nh.cat' in catalog_file.lower():
 	
 		Q = 1.2152*T**1.4863
 		
@@ -825,7 +826,39 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 	
 		Q = 3.2539 + 4.0233*T + 1.0014E-5*T**2		
 		
-	#GOTHAM PARTITION FUNCTIONS BELOW	
+	#GOTHAM PARTITION FUNCTIONS BELOW
+	
+	elif 'hcn.cat' in catalog_file.lower() and 'hfs' not in catalog_file.lower():
+	
+		Q = (0.92213*T**1.0836 + 4.3068)/3
+		
+		if T == CT:
+		
+			Q = 151.16
+			
+		elif T > 300:
+		
+			print('Warning: Extrapolating Q beyond 300 K for this molecule gets progressively iffier.')
+			
+		elif T < 5:
+		
+			print('Warning: Calculations for Q below 5 K are probably off by ~30%...')		
+			
+	elif 'hcn_hfs.cat' in catalog_file.lower():
+	
+		Q = (0.92213*T**1.0836 + 4.3068)
+		
+		if T == CT:
+		
+			Q = 453.4944
+			
+		elif T > 300:
+		
+			print('Warning: Extrapolating Q beyond 300 K for this molecule gets progressively iffier.')
+			
+		elif T < 5:
+		
+			print('Warning: Calculations for Q below 5 K are probably off by ~30%...')								
 		
 	elif 'hc11n' in catalog_file.lower() and 'hfs' not in catalog_file.lower():
 	
@@ -1034,6 +1067,18 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 		elif T > 40:
 		
 			print('Warning: Extrapolating Q beyond 40 K for this molecule gets progressively iffier.')	
+			
+	elif 'benzonitrile' in catalog_file.lower():
+	
+		Q = 25.896*T**1.4998 + 0.38109
+		
+		if T == CT:
+		
+			Q = 129198.481
+			
+		elif T > 60:
+		
+			print('Warning: Extrapolating Q beyond 60 K for this molecule gets progressively iffier.')
 		
 	else:
 	
@@ -1112,21 +1157,21 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 			J = temp[i][0] #Extract a J value from the list
 			E = temp[i][qns] #Extract its corresponding energy
 			
-			if 'benzonitrile.cat' in catalog_file.lower() or 'bn_global.cat' in catalog_file.lower() or 'benzonitrile' in catalog_file.lower():
+			#if 'benzonitrile.cat' in catalog_file.lower() or 'bn_global.cat' in catalog_file.lower() or 'benzonitrile' in catalog_file.lower():
 			
 				#Goes through and does the adjustments for the nuclear hyperfine splitting (it's being overcounted in the catalog, needs to be divide by 3), and the spin-statistic degeneracies.
 			
-				if (temp[i][1] % 2 == 0):
+			#	if (temp[i][1] % 2 == 0):
 				
-					 Q += (1/3)*(5/8)*(2*J+1)*exp(np.float64(-E/(kcm*T)))
+			#		 Q += (1/3)*(5/8)*(2*J+1)*exp(np.float64(-E/(kcm*T)))
 					 
-				else:
+			#	else:
 				
-					Q += (1/3)*(3/8)*(2*J+1)*exp(np.float64(-E/(kcm*T)))					
+			#		Q += (1/3)*(3/8)*(2*J+1)*exp(np.float64(-E/(kcm*T)))					
 					
-			else:
+			#else:
 		
-				Q += (2*J+1)*exp(np.float64(-E/(kcm*T))) #Add it to Q
+			Q += (2*J+1)*exp(np.float64(-E/(kcm*T))) #Add it to Q
 		
 		if 'h2cco' in catalog_file.lower() or 'ketene' in catalog_file.lower():
 		
@@ -1376,6 +1421,16 @@ def write_spectrum(x,output_file):
 	
 		freq_tmp = freq_sim
 		int_tmp = tbg
+		
+	elif x == 'stacked_sim':
+	
+		freq_tmp = vel_sim_stacked
+		int_tmp = int_sim_stacked
+		
+	elif x == 'mf':
+	
+		freq_tmp = velocity_mf
+		int_tmp = intensity_mf
 				
 	else:
 	
@@ -1557,6 +1612,27 @@ def run_sim(freq,intensity,T,dV,C,tau_get=None):
 
 	tau =tau_numerator/tau_denominator
 	
+# 	idx = find_nearest(frequency,19174.0845)
+# 	
+# 	print('Q: {}' .format(Q))
+# 	print('C: {}' .format(C))
+# 	print('Glow: {}' .format(glow[idx]))
+# 	print('elower: {} cm-2' .format(elower[idx]))
+# 	print('T: {}' .format(T))
+# 	print('ccm: {}' .format(ccm))
+# 	print('Frequency: {}' .format(frequency[idx]))
+# 	print('QNs: {} {} - {} {}' .format(qn1[idx],qn2[idx],qn7[idx],qn8[idx]))
+# 	print('aij: {}' .format(aij[idx]))
+# 	print('gup: {}' .format(gup[idx]))
+# 	print('Nl: {}' .format(Nl[idx]))
+# 	print('h: {}' .format(h))
+# 	print('k: {}' .format(k))
+# 	print('tau_numerator: {}' .format(tau_numerator[idx]))
+# 	print('dV: {}' .format(dV))
+# 	print('ckm: {}' .format(ckm))
+# 	print('tau_denominator: {}' .format(tau_denominator[idx]))
+# 	print('tau: {}' .format(tau[idx]))
+		
 	if tau_get is not None:
 	
 		idx = find_nearest(frequency,tau_get)
@@ -1588,6 +1664,16 @@ def run_sim(freq,intensity,T,dV,C,tau_get=None):
 		
 	int_tau = np.copy(int_temp)		
 	
+	# with open('{}_tau_stick.txt' .format(vlsr), 'w') as output:
+# 	
+# 		freq_prt = np.copy(freq_tmp)
+# 		
+# 		freq_prt -= (-vlsr)*freq_prt/ckm
+# 	
+# 		for x in range(len(int_tau)):
+# 		
+# 			output.write('{} {}\n' .format(freq_prt[x],int_tau[x]))		
+	
 	if gauss == True:
 
 		freq_sim,int_sim = sim_gaussian(int_temp,freq_tmp,dV)
@@ -1605,7 +1691,17 @@ def run_sim(freq,intensity,T,dV,C,tau_get=None):
 		int_sim = (J_T - J_Tbg)*(1 - np.exp(-int_temp))/eta
 		
 	int_sim = apply_beam(freq_sim,int_sim,source_size,dish_size,synth_beam,interferometer)
-		
+	
+	# with open('{}_tb_stick.txt' .format(vlsr), 'w') as output:
+# 	
+# 		freq_prt = np.copy(freq_sim)
+# 		
+# 		freq_prt -= (-vlsr)*freq_prt/ckm
+# 	
+# 		for x in range(len(int_sim)):
+# 		
+# 			output.write('{} {}\n' .format(freq_prt[x],int_sim[x]))	
+				
 	if planck == True:
 	
 		#calculate the beam solid angle, and throw an error if it hasn't been set.
@@ -4189,7 +4285,7 @@ def find_nearest(array,value):
 	
 #velocity_stack does a velocity stacking analysis using the current ll and ul, and the current simulation, using lines that are at least 0.1 sigma or larger, with the brightest simulated line scaled to be 1 sigma.
 
-def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,plot_chunks=False,blank_lines=False,fix_y=False,line_stats=True,pdf=False,labels_size=12,figsize=(6,4),thick=1.0,plotlabel=None,ylims=None,calc_sigma=False,label_sigma=False,plot_sigma=False,use_sum=False,sum_width_extend=3,plot_sim_chunks=False,plot_sum_range=False,plot_sim_stack=False,stack_out=None,sim_out=None,npz_out=False,mf=False,mf_out=None,mf_vmult=5.,mf_label=None,mf_pdf=False):
+def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,plot_chunks=False,blank_lines=False,fix_y=False,line_stats=True,pdf=False,labels_size=12,figsize=(6,4),thick=1.0,plotlabel=None,ylims=None,calc_sigma=False,label_sigma=False,plot_sigma=False,use_sum=False,sum_width_extend=3,plot_sim_chunks=False,plot_sum_range=False,plot_sim_stack=False,stack_out=None,sim_out=None,npz_out=False,mf=False,mf_out=None,mf_vmult=5.,mf_label=None,mf_pdf=False,filter_range=[-2,2]):
 
 	if flag_lines is True and blank_lines is True:
 	
@@ -4356,17 +4452,36 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 			
 		#if we're flagging windows that have other lines in them, do that.
 		
+# 		if flag_lines is True:
+# 			
+# 			if any(abs(obs.intensity) > flag_int_thresh*obs.rms):
+# 			
+# 				#if it's in the central channels (within +/- 10 FWHM), let's just flag the entire window and move on
+# 				
+# 				l_idx = find_nearest(obs.velocity, -10*dV)
+# 				u_idx = find_nearest(obs.velocity, 10*dV)
+# 				
+# 				if any(abs(obs.intensity[l_idx:u_idx]) > flag_int_thresh*obs.rms):
+# 			
+# 					obs.flag = True
+# 				
+# 					if print_flags is True:
+# 				
+# 						print('I detected and flagged a line at {} MHz from the stack.' .format(obs.cfreq))
+# 					
+# 					continue
+# 				
+# 				#otherwise, replace everything over the threshold with nans.
+# 					
+# 				else:
+# 				
+# 					obs.intensity[obs.intensity > flag_int_thresh*obs.rms] = np.nan
+
 		if flag_lines is True:
 		
-			if any(abs(obs.intensity) > flag_int_thresh*obs.rms):
-			
-				obs.flag = True
-				
-				if print_flags is True:
-				
-					print('I detected and deleted a line at {} MHz from the stack.' .format(obs.cfreq))
+			obs.intensity[obs.intensity > flag_int_thresh*obs.rms] = np.nan
 					
-				continue
+					
 				
 		#if we're just blanking some lines:
 		
@@ -4672,10 +4787,13 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	
 	#load into globals
 	
-	global vel_stacked,int_stacked
+	global vel_stacked,int_stacked,vel_sim_stacked,int_sim_stacked
 	
 	vel_stacked = np.copy(velocity_avg)
 	int_stacked = np.copy(int_avg)
+
+	vel_sim_stacked = np.copy(velocity_avg)
+	int_sim_stacked = np.copy(int_sim_avg)
 
 	#write anything out as requested
 	
@@ -4711,8 +4829,33 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	
 	if mf is True:
 	
-		filter_stack(drops = drops, flag_lines=flag_lines,flag_int_thresh = flag_int_thresh, print_flags = print_flags, vel_width = vel_width*mf_vmult, v_res = v_res,blank_lines=blank_lines,labels_size=labels_size,figsize=figsize,thick=thick,plotlabel=mf_label,use_sum=use_sum,sum_width_extend=sum_width_extend,mf_out=mf_out,npz_out=npz_out,mf_pdf=mf_pdf)
+		filter_stack(drops = drops, flag_lines=flag_lines,flag_int_thresh = flag_int_thresh, print_flags = print_flags, vel_width = vel_width*mf_vmult, v_res = v_res,blank_lines=blank_lines,labels_size=labels_size,figsize=figsize,thick=thick,plotlabel=mf_label,use_sum=use_sum,sum_width_extend=sum_width_extend,mf_out=mf_out,npz_out=npz_out,mf_pdf=mf_pdf,filter_range=filter_range)
 		
+# 		we only want the central channels in the stack over a (user-defined) velocity range
+# 	
+# 		l_idx = find_nearest(velocity_avg,filter_range[0])
+# 		u_idx = find_nearest(velocity_avg,filter_range[1])
+# 		
+# 		int_filter = int_sim_avg[l_idx:u_idx]
+# 
+# 		int_mf = matched_filter(int_avg,int_filter)
+# 		
+# 		plt.close(fig='sliced')
+# 		fig = plt.figure(num='sliced')
+# 		
+# 		ax_s = fig.add_subplot(111)
+# 		
+# 		ax_s.plot(velocity_avg,int_avg,color='black')
+# 		ax_s.plot(velocity_avg,int_sim_avg,color='limegreen')
+# 		ax_s.plot(velocity_avg[l_idx:u_idx],int_filter,color='dodgerblue')
+# 		
+# 		plt.close(fig='mf')
+# 		fig = plt.figure(num='mf')
+# 		
+# 		ax_s = fig.add_subplot(111)
+# 		
+# 		ax_s.plot(int_mf)
+# 		
 	
 	plt.figure('stack')
 	
@@ -4771,13 +4914,14 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	if pdf is not False:
 	
 		plt.savefig(pdf,format='pdf',transparent=True,bbox_inches='tight')
+		
 	
-	
+
 	return
 
 #filter_stack does a velocity stacking analysis using the current ll and ul, and the current simulation, and then pushes a matched filter through.
 
-def filter_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,blank_lines=False,labels_size=12,figsize=(6,4),thick=1.0,plotlabel=None,ylims=None,use_sum=False,sum_width_extend=3,mf_out=None,npz_out=False,mf_pdf=False):
+def filter_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,blank_lines=False,labels_size=12,figsize=(6,4),thick=1.0,plotlabel=None,ylims=None,use_sum=False,sum_width_extend=3,mf_out=None,npz_out=False,mf_pdf=False,filter_range=[-2,2]):
 
 	if flag_lines is True and blank_lines is True:
 	
@@ -4936,17 +5080,34 @@ def filter_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = 
 			
 		#if we're flagging windows that have other lines in them, do that.
 		
+# 		if flag_lines is True:
+# 			
+# 			if any(abs(obs.intensity) > flag_int_thresh*obs.rms):
+# 			
+# 				#if it's in the central channels (within +/- 10 FWHM), let's just flag the entire window and move on
+# 				
+# 				l_idx = find_nearest(obs.velocity, -10*dV)
+# 				u_idx = find_nearest(obs.velocity, 10*dV)
+# 				
+# 				if any(abs(obs.intensity[l_idx:u_idx]) > flag_int_thresh*obs.rms):
+# 			
+# 					obs.flag = True
+# 				
+# 					if print_flags is True:
+# 				
+# 						print('I detected and flagged a line at {} MHz from the stack.' .format(obs.cfreq))
+# 					
+# 					continue
+# 				
+# 				#otherwise, replace everything over the threshold with nans.
+# 					
+# 				else:
+# 				
+# 					obs.intensity[obs.intensity > flag_int_thresh*obs.rms] = np.nan
+
 		if flag_lines is True:
 		
-			if any(abs(obs.intensity) > flag_int_thresh*obs.rms):
-			
-				obs.flag = True
-				
-				if print_flags is True:
-				
-					print('I detected and deleted a line at {} MHz from the stack.' .format(obs.cfreq))
-					
-				continue
+			obs.intensity[obs.intensity > flag_int_thresh*obs.rms] = np.nan
 				
 		#if we're just blanking some lines:
 		
@@ -5070,11 +5231,44 @@ def filter_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = 
 	int_avg /= rms_tmp
 	int_sim_avg /= rms_tmp	
 
+	#we only want the central channels in the stack over a (user-defined) velocity range
+	
+	l_idx = find_nearest(velocity_avg,filter_range[0])
+	u_idx = find_nearest(velocity_avg,filter_range[1])
+	
+	#warn the user if they used the defaults:
+	
+	if filter_range == [-2,2]:
+	
+		print('Warning: Matched Filter analysis was run with the default filter_range that uses the stacked simulation between -2 and +2 km/s.  You can change this by setting filter_range=[lower,upper].')
+
+	int_sim_avg = int_sim_avg[l_idx:u_idx]
+	
 	#Matched filtering stuff below from Loomis
 	
-	#now we push the filter through; 'same' mode preserves the same shape of array as before
+	#now we push the filter through
 	
-	int_mf = np.convolve(int_avg,int_sim_avg,mode='same')
+	int_mf = np.convolve(int_avg,int_sim_avg,mode='valid')
+	
+	#clip down to the correct velocity range, but maintain the limits
+	
+	xmin = np.amin(velocity_avg)
+	xmax = np.amax(velocity_avg)
+	
+	nchans = int(len(int_mf)/2)
+	c_chan = int(len(velocity_avg)/2)
+	
+	velocity_avg = velocity_avg[c_chan-nchans:c_chan+nchans]
+	
+	if abs(len(velocity_avg) - len(int_mf)) == 1:
+	
+		if len(velocity_avg) > len(int_mf):
+	
+			velocity_avg = velocity_avg[:-1]
+			
+		else:
+		
+			int_mf = int_mf[:-1]
 	
 	#blank out the central channels for doing the rms
 	
@@ -5092,6 +5286,10 @@ def filter_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = 
 	
 	SNR = np.amax(int_mf)
 	min_val = np.amin(int_mf)
+	
+	#trim velocity_avg to match the new length of int_mf
+	
+	
 	
 	#plotting!	
 	
@@ -5118,6 +5316,8 @@ def filter_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = 
 	else:
 	
 		ax_s.set_ylim([-4,1.3*SNR])
+	
+	ax_s.set_xlim([xmin,xmax])
 	
 	if plotlabel != None:
 	
@@ -5169,6 +5369,12 @@ def filter_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = 
 		plt.savefig(mf_pdf,format='pdf',transparent=True,bbox_inches='tight')							
 	
 	return
+
+#matched_filter does a matched filter on the input waves, with wave2 being the filter, and returns the result
+
+def matched_filter(wave1, wave2):
+
+	return np.convolve(wave1, wave2, mode='valid')
 
 
 def cut_spectra(write=False,outputfile='cut.txt',n_fwhm=30):
