@@ -1760,7 +1760,7 @@ def get_Q(x):
 
 def check_Qvib(x):
 
-	Qvib = calc_qvib(vibs,T)
+	Qvib = calc_qvib(vibs,x)
 	
 	print('Q({}) = {:.5f}' .format(x,Qvib))
 	
@@ -1768,7 +1768,7 @@ def check_Qvib(x):
 
 def get_Qvib(x):
 
-	return calc_qvib(vibs,T)
+	return calc_qvib(vibs,x)
 	
 #check_Qrot prints out Qrot at a given temperature x
 
