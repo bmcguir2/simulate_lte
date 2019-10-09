@@ -1079,6 +1079,18 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 		elif T > 60:
 		
 			print('Warning: Extrapolating Q beyond 60 K for this molecule gets progressively iffier.')
+			
+	elif 'cyanoketene' in catalog_file.lower():
+	
+		Q = 11.5469451*T**1.5
+		
+		if T == CT:
+		
+			Q = 59826.2
+			
+		elif T > 300:
+		
+			print('Warning: Extrapolating Q beyond 300 K for this molecule gets progressively iffier.')		
 		
 	else:
 	
@@ -5862,6 +5874,14 @@ def get_sim_peak(ll,ul,absorption=False):
 	u_idx = find_nearest(freq_sim,ul)
 
 	tmp_i = int_sim[l_idx:u_idx]
+	
+	if (l_idx == 0 and u_idx == 0):
+	
+		tmp_i = int_sim[0]
+		
+	else:
+	
+		tmp_i = int_sim[l_idx:u_idx]
 	
 	if absorption is True:
 	
