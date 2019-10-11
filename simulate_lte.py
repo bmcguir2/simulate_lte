@@ -6374,7 +6374,7 @@ def make_postage_plot(PP):
 		
 			if PS.box is False:
 		
-				cax.annotate('{}' .format(PS.label), xy=(0.05,0.85), xycoords='axes fraction', color='black')
+				cax.annotate('{}' .format(PS.label), xy=(0.05,0.93), xycoords='axes fraction', color='black',va='top')
 				
 			else:
 			
@@ -6382,7 +6382,7 @@ def make_postage_plot(PP):
 	
 				bbox_props = dict(boxstyle='square', fc='white', lw=0)
 				
-				cax.annotate('{}' .format(PS.label), xy=(0.05,0.85), xycoords='axes fraction', color='black', bbox = bbox_props)
+				cax.annotate('{}' .format(PS.label), xy=(0.05,0.93), xycoords='axes fraction', color='black', bbox = bbox_props,va='top')
 			
 		#Add an annotation for the restfrequency used for the velocity calculation if we're in velocity space
 		
@@ -6402,13 +6402,13 @@ def make_postage_plot(PP):
 		
 			if PS.box is False:
 			
-				cax.annotate(cfreq_label, xy=(0.95,0.85), xycoords='axes fraction', color='black', **align_arg )
+				cax.annotate(cfreq_label, xy=(0.95,0.93), xycoords='axes fraction', color='black', **align_arg, va='top' )
 				
 			else:
 			
 				bbox_props = dict(boxstyle='square', fc='white', lw=0)
 				
-				cax.annotate(cfreq_label, xy=(0.95,0.85), xycoords='axes fraction', color='black', **align_arg, bbox = bbox_props)								
+				cax.annotate(cfreq_label, xy=(0.95,0.93), xycoords='axes fraction', color='black', **align_arg, bbox = bbox_props, va='top')								
 			
 		#set the number of x-ticks
 				
@@ -7279,6 +7279,134 @@ def set_ulim_c(x1,x2,level=None,absorption=False):
 	print('C: {:.2e}' .format(C))
 	
 	return
+
+#finds the highest SNR line (or lines) in a simulation for use in getting upper limits - super experimental
+
+def find_best_ulim(sep=dV,n=1,search_n=100,rms_spread=10,print_results=False,auto_limits=True):
+
+	if auto_limits is True:
+	
+		autoset_limits()
+
+	#find the indices of the peaks in the simulation
+
+	peak_idx = find_sim_peaks(freq_sim,np.absolute(int_sim),sep)
+	
+	#get the absolute value of the intensity and frequency values there
+	
+	peak_ints = np.array([abs(int_sim[x]) for x in peak_idx])	
+	peak_freqs = np.array([freq_sim[x] for x in peak_idx])
+	
+	#sort them based on intensity
+	
+	sort_idx = peak_ints.argsort()[::-1]
+	
+	peak_ints = peak_ints[sort_idx]
+	peak_freqs = peak_freqs[sort_idx]
+	peak_idx = peak_idx[sort_idx]
+	peak_rms = np.copy(peak_ints)*0.
+	peak_SNR = np.copy(peak_ints)*0.
+	
+	#Now go through and calculate RMS values at the top search_n*n points, looking rms_spread * the FWHM on either side of the line for the RMS
+	
+	search_range = min([len(peak_freqs),n*search_n])
+	
+	for i in range(search_range):
+	
+		dV_f = dV*peak_freqs[i]/ckm
+		
+		ll_i = peak_freqs[i] - rms_spread*dV_f
+		ul_i = peak_freqs[i] + rms_spread*dV_f
+		
+		rms = get_obs_rms(ll_i,ul_i)
+		
+		#if the rms is NaN because there's no data...
+		
+		if math.isnan(rms) is True:
+		
+			peak_rms[i] = np.nan
+			SNR = 0
+			peak_SNR[i] = SNR
+			
+		else:
+		
+			peak_rms[i] = rms		
+			SNR = peak_ints[i]/rms		
+			peak_SNR[i] = SNR
+		
+	#Now find the maximum RMS values and re-sort by those
+	
+	trimmed_ints = peak_ints[:n*search_n]
+	trimmed_freqs = peak_freqs[:n*search_n]
+	trimmed_idx = peak_idx[:n*search_n]
+	trimmed_rms = peak_rms[:n*search_n]
+	trimmed_SNR = peak_SNR[:n*search_n]
+	
+	sort_idx = trimmed_SNR.argsort()[::-1]
+	
+	trimmed_ints = trimmed_ints[sort_idx]
+	trimmed_freqs = trimmed_freqs[sort_idx]
+	trimmed_idx = trimmed_idx[sort_idx]
+	trimmed_rms = trimmed_rms[sort_idx]
+	trimmed_SNR = trimmed_SNR[sort_idx]
+	
+	#print out things if that was asked for
+	
+	if print_results is True:
+	
+		print('Frequency\tIntensity\tRMS\tSNR\n')
+		
+		for i in range(n):
+		
+			print('{:.4f}\t{:.4f}\t{:.4f}\t{:.1f}\n' .format(trimmed_freqs[i],trimmed_ints[i],trimmed_rms[i],trimmed_SNR[i]))
+	
+	return trimmed_freqs[:n]
+		
+#generate an upper limit report based on the best ulim automatically
+
+def autoset_ulim_c(rms_spread=10,print_results=True,make_pp=True,print_best_line=True,absorption=False):
+
+	global ll,ul
+	
+	autoset_limits()
+	
+	best_freq = find_best_ulim()[0]
+	
+	dV_f = dV*best_freq/ckm
+	
+	ll = float(best_freq - rms_spread*dV_f)
+	ul = float(best_freq + rms_spread*dV_f)	
+	
+	set_ulim_c(ll,ul,absorption=absorption)
+	
+	autoset_limits()
+	modC(C)
+	
+	best_freq = find_best_ulim()[0]
+	dV_f = dV*best_freq/ckm
+	
+	ll = float(best_freq - rms_spread*dV_f)
+	ul = float(best_freq + rms_spread*dV_f)	
+		
+	set_ulim_c(ll,ul,absorption=absorption)	
+	set_ulim_c(ll,ul,absorption=absorption)
+	
+	if print_results is True:
+	
+		print('Frequency: {:.2f}' .format(best_freq))
+		
+	if make_pp is True:
+	
+		PS = PostageStamp(best_freq)
+		PP = PostagePlot([PS])
+
+		make_postage_plot(PP)
+		
+	if print_best_line is True:
+	
+		print_lines(mK=True)
+	
+	return	
 
 #############################################################
 #						Custom Aliases	   					#
