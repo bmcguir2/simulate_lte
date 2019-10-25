@@ -77,6 +77,7 @@
 # 6.37 - adds glow calculation from loomis
 # 6.38 - update to matched filter script
 # 6.39 - updates to line flagging in stacking
+# 6.40 - adds ability to simulate spectra based on observations
 
 #############################################################
 #							Preamble						#
@@ -116,7 +117,7 @@ matplotlib.rc('text.latex',preamble=r'\usepackage{cmbright}')
 
 
 
-version = 6.39
+version = 6.40
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -204,6 +205,10 @@ lines = {} #dictionary to hold matplotlib lines
 tbg = [] #to hold background temperatures
 
 vibs = None #This is a list of vibrational *frequencies* in units of cm-1
+
+match_obs = False #if set to true, then the simulation will use the x-coords of the observations.
+
+two_fwhm_only = False #if set to true, will simulate only two FWHM around each line 
 
 ############ Tbg Parameters ##############
 
@@ -1292,9 +1297,17 @@ def sim_gaussian(int_sim,freq,linewidth):
 	
 		l_f = linewidth*freq[x]/ckm #get the FWHM in MHz
 	
-		min_f = freq[x] - 10*l_f #get the frequency 10 FWHM lower
+		if two_fwhm_only is True:
 		
-		max_f = freq[x] + 10*l_f #get the frequency 10 FWHM higher
+			min_f = freq[x] - 2*l_f #get the frequency 10 FWHM lower
+		
+			max_f = freq[x] + 2*l_f #get the frequency 10 FWHM higher		
+		
+		else:
+	
+			min_f = freq[x] - 10*l_f #get the frequency 10 FWHM lower
+		
+			max_f = freq[x] + 10*l_f #get the frequency 10 FWHM higher
 		
 		if x < len(int_sim)-2:
 		
@@ -1303,8 +1316,17 @@ def sim_gaussian(int_sim,freq,linewidth):
 					x += 1
 			
 					max_f = freq[x] + 10*l_f #get the frequency 10 FWHM higher
+					
+		if match_obs is True:			
 	
-		freq_line = np.arange(min_f,max_f,res) #generate a chunk of spectra at resolution res
+			l_idx = find_nearest(freq_obs,min_f)
+			u_idx = find_nearest(freq_obs,max_f)
+			
+			freq_line = np.asarray(freq_obs[l_idx:u_idx])
+			
+		else:
+		
+			freq_line = np.arange(min_f,max_f,res) #generate a chunk of spectra at resolution res	
 	
 		freq_gauss_tmp.extend(freq_line)
 		
@@ -7408,6 +7430,33 @@ def autoset_ulim_c(rms_spread=10,print_results=True,make_pp=True,print_best_line
 	
 	return	
 
+#subtract a simulation from and observation and return a quality metric
+
+def get_subtraction(obsx,obsy,simx,simy,ll,ul,return_sim=False):
+
+	#trim the observations down to size
+	
+	trim_obsy = trim_array(obsy,obsx,ll,ul)
+	trim_obsx = trim_array(obsx,obsx,ll,ul)
+	
+	#interpolate the simulation onto the observations, to make sure there's no extras
+	
+	interped_obs = np.interp(simx,trim_obsx,trim_obsy,left=np.nan,right=np.nan)
+	
+	total_spec = interped_obs - simy
+	
+	total = np.sum(np.abs(total_spec))
+	
+	if return_sim is True:
+	
+		sub_sim = trim_obsy - interped_sim
+		
+		return total, trim_obsx, sub_sim
+		
+	else:
+
+		return total
+		
 #############################################################
 #						Custom Aliases	   					#
 #############################################################
