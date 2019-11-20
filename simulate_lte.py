@@ -78,6 +78,7 @@
 # 6.38 - update to matched filter script
 # 6.39 - updates to line flagging in stacking
 # 6.40 - adds ability to simulate spectra based on observations
+# 6.41 - fixes bug in mf script
 
 #############################################################
 #							Preamble						#
@@ -117,7 +118,7 @@ matplotlib.rc('text.latex',preamble=r'\usepackage{cmbright}')
 
 
 
-version = 6.40
+version = 6.41
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -865,7 +866,7 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 		
 			print('Warning: Calculations for Q below 5 K are probably off by ~30%...')								
 		
-	elif 'hc11n' in catalog_file.lower() and 'hfs' not in catalog_file.lower():
+	elif 'hc11n' in catalog_file.lower():
 	
 		Q = 123.2554*T + 0.1381
 		
@@ -2790,6 +2791,8 @@ def sum_stored_thick():
 		int_sum += int_chunk
 		
 	freq_sum,int_sum = sim_gaussian(int_sum,freq_sum,dV)
+	
+	int_sum = apply_beam(freq_sum,int_sum,source_size,dish_size,synth_beam,interferometer)
 		
 	overplot_sum()	
 
@@ -4319,7 +4322,7 @@ def find_nearest(array,value):
 	
 #velocity_stack does a velocity stacking analysis using the current ll and ul, and the current simulation, using lines that are at least 0.1 sigma or larger, with the brightest simulated line scaled to be 1 sigma.
 
-def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,plot_chunks=False,blank_lines=False,fix_y=False,line_stats=True,pdf=False,labels_size=12,figsize=(6,4),thick=1.0,plotlabel=None,ylims=None,calc_sigma=False,label_sigma=False,plot_sigma=False,use_sum=False,sum_width_extend=3,plot_sim_chunks=False,plot_sum_range=False,plot_sim_stack=False,stack_out=None,sim_out=None,npz_out=False,mf=False,mf_out=None,mf_vmult=5.,mf_label=None,mf_pdf=False,filter_range=[-2,2]):
+def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,plot_chunks=False,blank_lines=False,fix_y=False,line_stats=True,pdf=False,labels_size=12,figsize=(6,4),thick=1.0,plotlabel=None,ylims=None,calc_sigma=False,label_sigma=False,plot_sigma=False,use_sum=False,sum_width_extend=3,plot_sim_chunks=False,plot_sum_range=False,plot_sim_stack=False,stack_out=None,sim_out=None,npz_out=False,mf=False,mf_out=None,mf_vmult=5.,mf_label=None,mf_pdf=False,filter_range=[-2,2],mf_ylims=None):
 
 	if flag_lines is True and blank_lines is True:
 	
@@ -4391,7 +4394,13 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 		
 		#first we find out how far up and down we need to span in frequency space
 		
-		freq_width = vel_width*dV*cfreq/ckm
+		if mf is True:
+		
+			freq_width = vel_width*dV*cfreq/ckm*mf_vmult
+		
+		else:
+		
+			freq_width = vel_width*dV*cfreq/ckm
 		
 		#get the lower frequency we need
 		
@@ -4485,36 +4494,10 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 			continue
 			
 		#if we're flagging windows that have other lines in them, do that.
-		
-# 		if flag_lines is True:
-# 			
-# 			if any(abs(obs.intensity) > flag_int_thresh*obs.rms):
-# 			
-# 				#if it's in the central channels (within +/- 10 FWHM), let's just flag the entire window and move on
-# 				
-# 				l_idx = find_nearest(obs.velocity, -10*dV)
-# 				u_idx = find_nearest(obs.velocity, 10*dV)
-# 				
-# 				if any(abs(obs.intensity[l_idx:u_idx]) > flag_int_thresh*obs.rms):
-# 			
-# 					obs.flag = True
-# 				
-# 					if print_flags is True:
-# 				
-# 						print('I detected and flagged a line at {} MHz from the stack.' .format(obs.cfreq))
-# 					
-# 					continue
-# 				
-# 				#otherwise, replace everything over the threshold with nans.
-# 					
-# 				else:
-# 				
-# 					obs.intensity[obs.intensity > flag_int_thresh*obs.rms] = np.nan
 
 		if flag_lines is True:
 		
 			obs.intensity[obs.intensity > flag_int_thresh*obs.rms] = np.nan
-					
 					
 				
 		#if we're just blanking some lines:
@@ -4523,15 +4506,7 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 		
 			obs.intensity[abs(obs.intensity) > flag_int_thresh*obs.rms] = np.nan		
 
-	#now we have to figure out the weights for the arrays.  We start by finding the maximum line height, and scaling all of them so that the largest value is 1, excepting anything we've flagged.
-	
-# 	peaks = []
-# 	
-# 	for obs in obs_list:
-# 	
-# 		if obs.flag is False:
-# 		
-# 			peaks.append(obs.weight)
+	#now we have to figure out the weights for the arrays.  We start by finding the maximum line height.
 		
 	max_int = max(peak_ints)
 		
@@ -4550,8 +4525,15 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	
 	#calculate the velocity bounds
 	
-	l_vel = -vel_width*dV
-	u_vel = vel_width*dV
+	if mf is True:
+	
+		l_vel = -vel_width*dV*mf_vmult
+		u_vel = vel_width*dV*mf_vmult	
+	
+	else:
+	
+		l_vel = -vel_width*dV
+		u_vel = vel_width*dV
 	
 	#generate the array
 	
@@ -4623,16 +4605,7 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	velocity_avg = velocity_avg[5:-5]
 	
 	#finally, we get the final rms, and divide out to get to snr. # We'll use the first and last 25% of the data (not anymore)
-	
-	#npts = len(int_avg)
-	
-	#l_idx = int(npts*0.25)
-	#u_idx = int(npts*0.75)
-	
-	#rms_chunk = np.concatenate((int_avg[2:l_idx],int_avg[u_idx:-2]),axis=None)
-	
-	#int_avg /= get_rms(rms_chunk)
-	#int_sim_avg /= get_rms(rms_chunk)	
+
 	
 	rms_tmp = get_rms(int_avg)
 	
@@ -4789,7 +4762,12 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	
 	else:
 	
-		ax_s.set_ylim([-4,1.3*SNR])
+		ax_s.set_ylim([-0.1*SNR,1.3*SNR])
+		
+	xlower = -vel_width*dV
+	xupper = vel_width*dV
+	
+	ax_s.set_xlim([xlower,xupper])
 	
 	if line_stats is True:
 	
@@ -4799,7 +4777,7 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	
 		align_arg = {'ha' : 'right'}
 	
-		ax_s.annotate(plotlabel, xy=(0.95,0.85), xycoords='axes fraction', color='black', **align_arg)					
+		ax_s.annotate(plotlabel, xy=(0.95,0.85), xycoords='axes fraction', color='black', **align_arg)						
 
 	ax_s.plot(velocity_avg,int_avg,color='black',label='stacked',zorder=5,linewidth=thick,drawstyle='steps')
 	
@@ -4862,34 +4840,123 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	#run a matched filter if one was requested
 	
 	if mf is True:
-	
-		filter_stack(drops = drops, flag_lines=flag_lines,flag_int_thresh = flag_int_thresh, print_flags = print_flags, vel_width = vel_width*mf_vmult, v_res = v_res,blank_lines=blank_lines,labels_size=labels_size,figsize=figsize,thick=thick,plotlabel=mf_label,use_sum=use_sum,sum_width_extend=sum_width_extend,mf_out=mf_out,npz_out=npz_out,mf_pdf=mf_pdf,filter_range=filter_range)
 		
-# 		we only want the central channels in the stack over a (user-defined) velocity range
-# 	
-# 		l_idx = find_nearest(velocity_avg,filter_range[0])
-# 		u_idx = find_nearest(velocity_avg,filter_range[1])
-# 		
-# 		int_filter = int_sim_avg[l_idx:u_idx]
-# 
-# 		int_mf = matched_filter(int_avg,int_filter)
-# 		
-# 		plt.close(fig='sliced')
-# 		fig = plt.figure(num='sliced')
-# 		
-# 		ax_s = fig.add_subplot(111)
-# 		
-# 		ax_s.plot(velocity_avg,int_avg,color='black')
-# 		ax_s.plot(velocity_avg,int_sim_avg,color='limegreen')
-# 		ax_s.plot(velocity_avg[l_idx:u_idx],int_filter,color='dodgerblue')
-# 		
-# 		plt.close(fig='mf')
-# 		fig = plt.figure(num='mf')
-# 		
-# 		ax_s = fig.add_subplot(111)
-# 		
-# 		ax_s.plot(int_mf)
-# 		
+		int_mf = matched_filter(vel_stacked,int_stacked,int_sim_stacked)
+
+		#plotting!	
+	
+		plt.close(fig='mf')
+	
+		fig = plt.figure(num='mf',figsize=figsize)
+	
+		ax_s = fig.add_subplot(111)
+
+		minorLocator = AutoMinorLocator(5)
+		plt.xlabel('Velocity (km/s)')
+		plt.ylabel('Impulse Response ($\sigma$)')
+
+		plt.locator_params(nbins=4) #Use only 4 actual numbers on the x-axis
+		ax_s.xaxis.set_minor_locator(minorLocator) #Let the program calculate some minor ticks from that
+
+		ax_s.get_xaxis().get_major_formatter().set_scientific(False) #Don't let the x-axis go into scientific notation
+		ax_s.get_xaxis().get_major_formatter().set_useOffset(False)
+
+		#clip down to the correct velocity range, but maintain the limits
+	
+		xmin = np.amin(vel_stacked)
+		xmax = np.amax(vel_stacked)
+	
+		nchans = int(len(int_mf)/2)
+		c_chan = int(len(vel_stacked)/2)
+	
+		new_vel = vel_stacked[c_chan-nchans:c_chan+nchans]
+	
+		if abs(len(new_vel) - len(int_mf)) == 1:
+	
+			if len(new_vel) > len(int_mf):
+	
+				new_vel = new_vel[:-1]
+			
+			else:
+		
+				int_mf = int_mf[:-1]
+		#stats
+	
+		SNR = np.nanmax(int_mf)
+		min_val = np.nanmin(int_mf)
+
+		if mf_ylims is None:
+		
+			if SNR < 10:
+	
+				ax_s.set_ylim([-4,12])
+	
+			else:
+		
+				if 0.1*SNR < 4:
+			
+					ymin = -4
+				
+				else:
+			
+					ymin = -0.1*SNR
+	
+				ax_s.set_ylim([ymin,1.3*SNR])
+
+		else:
+		
+			ax_s.set_ylim([mf_ylims[0],mf_ylims[1]])
+			
+		ax_s.set_xlim([xmin,xmax])
+	
+		if mf_label != None:
+	
+			align_arg = {'ha' : 'right'}
+	
+			ax_s.annotate(mf_label, xy=(0.95,0.75), xycoords='axes fraction', color='black', **align_arg)
+
+		ax_s.plot(new_vel,int_mf,color='black',label='mf',zorder=5,linewidth=thick,drawstyle='steps')
+	
+		align_arg = {'ha' : 'right'}
+	
+		ax_s.annotate('Peak Impulse Response: {:.1f}$\sigma$' .format(SNR), xy=(0.95,0.85), xycoords='axes fraction', color='black', **align_arg)	
+		
+		#add some minor ticks
+	
+		ax_s.minorticks_on()
+	
+		ax_s.tick_params(axis='x', which='both', direction='in')
+		ax_s.tick_params(axis='y', which='both', direction='in')
+	
+		#make sure ticks are on both mirror axes
+	
+		ax_s.yaxis.set_ticks_position('both')
+		ax_s.xaxis.set_ticks_position('both')
+	
+		global velocity_mf,intensity_mf
+	
+		velocity_mf = np.copy(new_vel)
+		intensity_mf = np.copy(int_mf)	
+	
+		if mf_out is not None:
+
+			if npz_out is False:
+	
+				with open (mf_out, 'w') as output:
+		
+					for x in range(len(velocity_mf)):
+			
+						output.write('{} {}\n' .format(velocity_mf[x],intensity_mf[x]))
+				
+			else:
+	
+				np.savez(mf_out,velocity_mf=velocity_mf,intensity_mf=intensity_mf)
+			
+		plt.show()
+	
+		if mf_pdf is not False:
+	
+			plt.savefig(mf_pdf,format='pdf',transparent=True,bbox_inches='tight')			
 	
 	plt.figure('stack')
 	
@@ -4947,362 +5014,20 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	
 	if pdf is not False:
 	
-		plt.savefig(pdf,format='pdf',transparent=True,bbox_inches='tight')
-		
-	
+		plt.savefig(pdf,format='pdf',transparent=True,bbox_inches='tight')	
 
 	return
 
-#filter_stack does a velocity stacking analysis using the current ll and ul, and the current simulation, and then pushes a matched filter through.
+#matched_filter pushes a matched filter through the given sets of stuff and returns the result
 
-def filter_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,blank_lines=False,labels_size=12,figsize=(6,4),thick=1.0,plotlabel=None,ylims=None,use_sum=False,sum_width_extend=3,mf_out=None,npz_out=False,mf_pdf=False,filter_range=[-2,2]):
-
-	if flag_lines is True and blank_lines is True:
-	
-		print('You have set both flag_lines and blank_lines to True.  Flag_lines will supercede this and blank_lines will do nothing.  You have been warned.')
-	
-	freq_local = np.copy(freq_obs)
-	int_local = np.copy(int_obs)
-
-	if use_sum is False:
-	
-		#find the simulation indices where the peaks are
-	
-		peak_indices = find_sim_peaks(freq_sim,int_sim,dV)
-		
-		#find the frequencies and intensities corresponding to those peaks
-	
-		peak_freqs = freq_sim[peak_indices]
-		peak_ints = int_sim[peak_indices]		
-	
-	#if we're using the sum, we'll use integrated flux over the summed signal instead
-	
-	if use_sum is True:
-	
-		#find the peaks
-	
-		peak_indices = find_sim_peaks(freq_sum,int_sum,dV*sum_width_extend)
-	
-		peak_freqs = freq_sum[peak_indices]
-		
-		peak_ints = []
-		
-		#now we need to sum up for a good fraction on either side.
-		
-		for x in peak_freqs:
-		
-			#get the width we're working with in frequency space
-		
-			freq_width = dV*sum_width_extend*x/ckm
-		
-			#find the index half that width down and up from the peak center
-		
-			tmp_ll = find_nearest(freq_sum,(x-freq_width/2))
-			tmp_ul = find_nearest(freq_sum,(x+freq_width/2))
-		
-			#add up all the flux between those ranges and append it to peak_ints
-		
-			peak_ints.append(np.nansum(int_sum[tmp_ll:tmp_ul]))
-	
-	#create a dictionary to hold obs chunks
-	
-	obs_chunks = {}
-	
-	for x in range(len(peak_freqs)):
-	
-		#get some temporary variables to hold the center frequency and peak intensity
-		
-		cfreq = peak_freqs[x]
-		peak_int = peak_ints[x]
-						
-		#calculate the lower and upper frequencies corresponding to vel_width FWHM away from the center frequency.
-		
-		#first we find out how far up and down we need to span in frequency space
-		
-		freq_width = vel_width*dV*cfreq/ckm
-		
-		#get the lower frequency we need
-		
-		l_freq = cfreq - freq_width
-		
-		#get the upper frequency we need
-		
-		u_freq = cfreq + freq_width
-		
-		#find the indexes in the observation closest to those frequencies
-		
-		l_idx = find_nearest(freq_local,l_freq)
-		u_idx = find_nearest(freq_local,u_freq)
-		
-		#if we're going to be plotting simulations, then sort those out.
-		
-		if use_sum is True:
-		
-			sim_l_idx = find_nearest(freq_sum,l_freq)
-			sim_u_idx = find_nearest(freq_sum,u_freq)
-			
-		else:
-		
-			sim_l_idx = find_nearest(freq_sim,l_freq)
-			sim_u_idx = find_nearest(freq_sim,u_freq)				
-		
-		#create and store an ObsChunk
-
-		if use_sum is True:
-	
-			obs_chunks[x] = ObsChunk(freq_local[l_idx:u_idx],int_local[l_idx:u_idx],cfreq,peak_int,x,freq_sim=freq_sum[sim_l_idx:sim_u_idx],int_sim=int_sum[sim_l_idx:sim_u_idx])
-			
-		else:
-		
-			obs_chunks[x] = ObsChunk(freq_local[l_idx:u_idx],int_local[l_idx:u_idx],cfreq,peak_int,x,freq_sim=freq_sim[sim_l_idx:sim_u_idx],int_sim=int_sim[sim_l_idx:sim_u_idx])
-
-	#for iterating convenience, we make an obs_list
-	
-	obs_list = []
-	
-	for obs in obs_chunks:
-	
-		obs_list.append(obs_chunks[obs])	
-		
-	#now we do some stupid checking
-		
-	for obs in obs_list:
-		
-		#if the flag is already tripped, just move on.  Below, as soon as a flag is tripped we move on.
-		
-		if obs.flag is True:
-		
-			continue
-			
-		#we'll check to see if there is any data within 0.5*dV of the line.  If not, then we're going to flag it.		
-		
-		#create an array that is a copy of the frequencies in the chunk
-		
-		diffs = np.copy(obs.frequency)
-		
-		#subtract the line frequency from all of those
-		
-		diffs -= obs.cfreq
-		
-		#get the absolute value
-		
-		diffs = abs(diffs)
-		
-		#then if the minimum value of that array isn't less than 0.5*dV, we flag it
-		
-		if np.amin(diffs) > 0.5*dV:
-	
-			obs.flag = True
-			
-			continue
-			
-		#make sure the len of the array isn't something dumb, like 0
-		
-		if len(obs.frequency) == 0:
-	
-			obs.flag = True
-			
-			continue
-			
-		#drop anything corresponding to the drop list
-		
-		if obs.tag in drops:
-		
-			obs.flag = True
-			
-			continue
-			
-		#if we're flagging windows that have other lines in them, do that.
-		
-# 		if flag_lines is True:
-# 			
-# 			if any(abs(obs.intensity) > flag_int_thresh*obs.rms):
-# 			
-# 				#if it's in the central channels (within +/- 10 FWHM), let's just flag the entire window and move on
-# 				
-# 				l_idx = find_nearest(obs.velocity, -10*dV)
-# 				u_idx = find_nearest(obs.velocity, 10*dV)
-# 				
-# 				if any(abs(obs.intensity[l_idx:u_idx]) > flag_int_thresh*obs.rms):
-# 			
-# 					obs.flag = True
-# 				
-# 					if print_flags is True:
-# 				
-# 						print('I detected and flagged a line at {} MHz from the stack.' .format(obs.cfreq))
-# 					
-# 					continue
-# 				
-# 				#otherwise, replace everything over the threshold with nans.
-# 					
-# 				else:
-# 				
-# 					obs.intensity[obs.intensity > flag_int_thresh*obs.rms] = np.nan
-
-		if flag_lines is True:
-		
-			obs.intensity[obs.intensity > flag_int_thresh*obs.rms] = np.nan
-				
-		#if we're just blanking some lines:
-		
-		if blank_lines is True:
-		
-			obs.intensity[abs(obs.intensity) > flag_int_thresh*obs.rms] = np.nan		
-
-	#now we have to figure out the weights for the arrays.  We start by finding the maximum line height, and scaling all of them so that the largest value is 1, excepting anything we've flagged.
-	
-	peaks = []
-	
-	for obs in obs_list:
-	
-		if obs.flag is False:
-		
-			peaks.append(obs.weight)
-		
-	max_int = max(peak_ints)
-		
-	#now we divide all our obs chunks by that, and then weight them down by their rms^2
-		
-	for obs in obs_list:
-	
-		if obs.flag is False:
-	
-			obs.weight = obs.peak_int/max_int
-			obs.weight /= obs.rms**2	
-			obs.int_weighted = obs.intensity * obs.weight
-			obs.int_sim_weighted = obs.int_sim * obs.weight
-		
-	#ok, now we need to generate a velocity array to interpolate everything onto, using the specified number of FWHMs, dV, and the desired resolution.
-	
-	#calculate the velocity bounds
-	
-	l_vel = -vel_width*dV
-	u_vel = vel_width*dV
-	
-	#generate the array
-	
-	velocity_avg = np.arange(l_vel,u_vel,v_res)
-	
-	#go through all the chunks and resample them, setting anything that is outside the range we asked for to be nans.
-		
-	for obs in obs_list:
-	
-		if obs.flag is False:
-	
-			obs.int_samp = np.interp(velocity_avg,obs.velocity,obs.int_weighted,left=np.nan,right=np.nan)			
-			obs.int_sim_samp = np.interp(velocity_avg,obs.sim_velocity,obs.int_sim_weighted,left=np.nan,right=np.nan)
-
-	#ok, now we loop through all the chunks and add them to a list, then convert to an numpy array.  We have to do the same thing w/ RMS values to allow for proper division.
-					
-	interped_ints = []
-	interped_rms = []
-	interped_sim_ints = []
-	
-	i = 0
-	
-	for obs in obs_list:
-	
-		if obs.flag is False:
-		
-			i+=1
-		
-			interped_ints.append(obs.int_samp)
-			interped_rms.append(obs.rms)		
-			interped_sim_ints.append(obs.int_sim_samp)
-			
-	interped_ints = np.asarray(interped_ints)
-	interped_rms = np.asarray(interped_rms)
-	interped_sim_ints = np.asarray(interped_sim_ints)
-	
-	#we're going to now need a point by point rms array, so that when we average up and ignore nans, we don't divide by extra values.
-	
-	rms_array = []
-	
-	for x in range(len(velocity_avg)):	
-	
-		rms_sum = 0
-		
-		for y in range(len(interped_rms)):
-		
-			if np.isnan(interped_ints[y][x]):
-			
-				continue
-				
-			else:
-			
-				rms_sum += interped_rms[y]**2	
-				
-		rms_array.append(rms_sum)
-		
-	rms_array = np.copy(rms_array)
-
-	#now we add up the interped intensities, then divide that by the rms_array
-	
-	int_avg = np.nansum(interped_ints,axis=0)/rms_array
-	
-	int_sim_avg = np.nansum(interped_sim_ints,axis=0)/rms_array
-	
-	#drop some edge channels
-	
-	int_avg = int_avg[5:-5]
-	int_sim_avg = int_sim_avg[5:-5]
-	velocity_avg = velocity_avg[5:-5]
-	
-	#finally, we get the final rms, and divide out to get to snr. # We'll use the first and last 25% of the data (not anymore)
-	
-	#npts = len(int_avg)
-	
-	#l_idx = int(npts*0.25)
-	#u_idx = int(npts*0.75)
-	
-	#rms_chunk = np.concatenate((int_avg[2:l_idx],int_avg[u_idx:-2]),axis=None)
-	
-	#int_avg /= get_rms(rms_chunk)
-	#int_sim_avg /= get_rms(rms_chunk)	
-	
-	rms_tmp = get_rms(int_avg)
-	
-	int_avg /= rms_tmp
-	int_sim_avg /= rms_tmp	
+def matched_filter(x_obs,y_obs,y_filter,filter_range=[-2,2]):
 
 	#we only want the central channels in the stack over a (user-defined) velocity range
 	
-	l_idx = find_nearest(velocity_avg,filter_range[0])
-	u_idx = find_nearest(velocity_avg,filter_range[1])
+	l_idx = find_nearest(x_obs,filter_range[0])
+	u_idx = find_nearest(x_obs,filter_range[1])	
 	
-	#warn the user if they used the defaults:
-	
-	if filter_range == [-2,2]:
-	
-		print('Warning: Matched Filter analysis was run with the default filter_range that uses the stacked simulation between -2 and +2 km/s.  You can change this by setting filter_range=[lower,upper].')
-
-	int_sim_avg = int_sim_avg[l_idx:u_idx]
-	
-	#Matched filtering stuff below from Loomis
-	
-	#now we push the filter through
-	
-	int_mf = np.convolve(int_avg,int_sim_avg,mode='valid')
-	
-	#clip down to the correct velocity range, but maintain the limits
-	
-	xmin = np.amin(velocity_avg)
-	xmax = np.amax(velocity_avg)
-	
-	nchans = int(len(int_mf)/2)
-	c_chan = int(len(velocity_avg)/2)
-	
-	velocity_avg = velocity_avg[c_chan-nchans:c_chan+nchans]
-	
-	if abs(len(velocity_avg) - len(int_mf)) == 1:
-	
-		if len(velocity_avg) > len(int_mf):
-	
-			velocity_avg = velocity_avg[:-1]
-			
-		else:
-		
-			int_mf = int_mf[:-1]
+	int_mf = np.convolve(y_obs,y_filter[l_idx:u_idx],mode='valid')
 	
 	#blank out the central channels for doing the rms
 	
@@ -5310,106 +5035,13 @@ def filter_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = 
 	
 	int_mf_tmp = np.copy(int_mf)
 	
-	int_mf_tmp[int(0.375*len_mf):int(0.625*len_mf)] = np.nan
+	int_mf_tmp[int(0.45*len_mf):int(0.55*len_mf)] = np.nan
 	
 	mf_rms = get_rms(int_mf_tmp)
 	
-	int_mf /= mf_rms
-	
-	#stats
-	
-	SNR = np.amax(int_mf)
-	min_val = np.amin(int_mf)
-	
-	#trim velocity_avg to match the new length of int_mf
-	
-	
-	
-	#plotting!	
-	
-	plt.close(fig='mf')
-	
-	fig = plt.figure(num='mf',figsize=figsize)
-	
-	ax_s = fig.add_subplot(111)
+	int_mf /= mf_rms	
 
-	minorLocator = AutoMinorLocator(5)
-	plt.xlabel('Velocity (km/s)')
-	plt.ylabel('Impulse Response ($\sigma$)')
-
-	plt.locator_params(nbins=4) #Use only 4 actual numbers on the x-axis
-	ax_s.xaxis.set_minor_locator(minorLocator) #Let the program calculate some minor ticks from that
-
-	ax_s.get_xaxis().get_major_formatter().set_scientific(False) #Don't let the x-axis go into scientific notation
-	ax_s.get_xaxis().get_major_formatter().set_useOffset(False)
-	
-	if SNR < 10:
-	
-		ax_s.set_ylim([-4,12])
-	
-	else:
-	
-		ax_s.set_ylim([-4,1.3*SNR])
-	
-	ax_s.set_xlim([xmin,xmax])
-	
-	if plotlabel != None:
-	
-		align_arg = {'ha' : 'right'}
-	
-		ax_s.annotate(plotlabel, xy=(0.95,0.75), xycoords='axes fraction', color='black', **align_arg)
-
-	ax_s.plot(velocity_avg,int_mf,color='black',label='mf',zorder=5,linewidth=thick,drawstyle='steps')
-	
-	align_arg = {'ha' : 'right'}
-	
-	ax_s.annotate('Peak Impulse Response: {:.1f}$\sigma$' .format(SNR), xy=(0.95,0.85), xycoords='axes fraction', color='black', **align_arg)	
-		
-	#add some minor ticks
-	
-	ax_s.minorticks_on()
-	
-	ax_s.tick_params(axis='x', which='both', direction='in')
-	ax_s.tick_params(axis='y', which='both', direction='in')
-	
-	#make sure ticks are on both mirror axes
-	
-	ax_s.yaxis.set_ticks_position('both')
-	ax_s.xaxis.set_ticks_position('both')
-	
-	global velocity_mf,intensity_mf
-	
-	velocity_mf = np.copy(velocity_avg)
-	intensity_mf = np.copy(int_mf)	
-	
-	if mf_out is not None:
-
-		if npz_out is False:
-	
-			with open (mf_out, 'w') as output:
-		
-				for x in range(len(velocity_mf)):
-			
-					output.write('{} {}\n' .format(velocity_mf[x],intensity_mf[x]))
-				
-		else:
-	
-			np.savez(mf_out,velocity_mf=velocity_mf,intensity_mf=intensity_mf)
-			
-	plt.show()
-	
-	if mf_pdf is not False:
-	
-		plt.savefig(mf_pdf,format='pdf',transparent=True,bbox_inches='tight')							
-	
-	return
-
-#matched_filter does a matched filter on the input waves, with wave2 being the filter, and returns the result
-
-def matched_filter(wave1, wave2):
-
-	return np.convolve(wave1, wave2, mode='valid')
-
+	return int_mf
 
 def cut_spectra(write=False,outputfile='cut.txt',n_fwhm=30):
 
@@ -5986,7 +5618,7 @@ def make_postage_plot(PP):
 		
 	#close the old figure if there is one
 	
-	plt.close(fig='stamps')	
+	plt.close(fig=PP.fig_num)	
 
 	#initialize a figure
 	
@@ -6004,7 +5636,7 @@ def make_postage_plot(PP):
 	
 		figsize = (12,8)
 	
-	fig = plt.figure(num='stamps',figsize=figsize)
+	fig = plt.figure(num=PP.fig_num,figsize=figsize)
 	
 	#set some defaults
 	
@@ -6602,7 +6234,7 @@ def make_postage_plot(PP):
 	
 	if PP.pdf is not False:
 	
-		plt.savefig(PP.pdf,format='pdf',transparent=True,bbox_inches='tight')
+		plt.savefig(PP.pdf,format='pdf',transparent=True)
 
 	return
 
@@ -8051,7 +7683,7 @@ class ObsChunk(object):
 		
 class PostagePlot(object):
 
-	def __init__(self,lines,nwidths=40,ylims=None,velocity=False,pdf=False,obs=True,sim=True,nrows=None,ncols=None,obs_color='Black',sim_color='Red',obs_draw='steps',sim_draw='steps',title=None,GHz=False,xticks=3,yticks=3,xlabel=None,ylabel=None,milli=False,vlsr=vlsr,v_res=None,figsize=None,labels_size=18,lower_left_only=False,obs_thick=1.0,sim_thick=1.0,error_bar_color='blue',error_bar_thick=1.0,plot_error=False,error_cap_size=2.,stored=[],stored_thick=[],stored_color=[],sum=False,sum_color='lime',sum_thick=1.,sum_style='steps'):
+	def __init__(self,lines,nwidths=40,ylims=None,velocity=False,pdf=False,obs=True,sim=True,nrows=None,ncols=None,obs_color='Black',sim_color='Red',obs_draw='steps',sim_draw='steps',title=None,GHz=False,xticks=3,yticks=3,xlabel=None,ylabel=None,milli=False,vlsr=vlsr,v_res=None,figsize=None,labels_size=18,lower_left_only=False,obs_thick=1.0,sim_thick=1.0,error_bar_color='blue',error_bar_thick=1.0,plot_error=False,error_cap_size=2.,stored=[],stored_thick=[],stored_color=[],sum=False,sum_color='lime',sum_thick=1.,sum_style='steps',fig_num='Stamps'):
 	
 		self.lines = lines
 		self.nwidths = nwidths
@@ -8091,6 +7723,7 @@ class PostagePlot(object):
 		self.sum_color = sum_color
 		self.sum_thick = sum_thick
 		self.sum_style = sum_style
+		self.fig_num = fig_num
 		
 		return
 		
