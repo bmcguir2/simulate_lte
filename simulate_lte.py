@@ -79,6 +79,7 @@
 # 6.39 - updates to line flagging in stacking
 # 6.40 - adds ability to simulate spectra based on observations
 # 6.41 - fixes bug in mf script
+# 6.42 - adds option to blank lines not in central portions of stacks and mfs
 
 #############################################################
 #							Preamble						#
@@ -118,7 +119,7 @@ matplotlib.rc('text.latex',preamble=r'\usepackage{cmbright}')
 
 
 
-version = 6.41
+version = 6.42
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -4322,7 +4323,7 @@ def find_nearest(array,value):
 	
 #velocity_stack does a velocity stacking analysis using the current ll and ul, and the current simulation, using lines that are at least 0.1 sigma or larger, with the brightest simulated line scaled to be 1 sigma.
 
-def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,plot_chunks=False,blank_lines=False,fix_y=False,line_stats=True,pdf=False,labels_size=12,figsize=(6,4),thick=1.0,plotlabel=None,ylims=None,calc_sigma=False,label_sigma=False,plot_sigma=False,use_sum=False,sum_width_extend=3,plot_sim_chunks=False,plot_sum_range=False,plot_sim_stack=False,stack_out=None,sim_out=None,npz_out=False,mf=False,mf_out=None,mf_vmult=5.,mf_label=None,mf_pdf=False,filter_range=[-2,2],mf_ylims=None):
+def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,plot_chunks=False,blank_lines=False,blank_keep_range=None,fix_y=False,line_stats=True,pdf=False,labels_size=12,figsize=(6,4),thick=1.0,plotlabel=None,ylims=None,calc_sigma=False,label_sigma=False,plot_sigma=False,use_sum=False,sum_width_extend=3,plot_sim_chunks=False,plot_sum_range=False,plot_sim_stack=False,stack_out=None,sim_out=None,npz_out=False,mf=False,mf_out=None,mf_vmult=5.,mf_label=None,mf_pdf=False,filter_range=[-2,2],mf_ylims=None):
 
 	if flag_lines is True and blank_lines is True:
 	
@@ -4431,11 +4432,11 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 
 		if use_sum is True:
 	
-			obs_chunks[x] = ObsChunk(freq_local[l_idx:u_idx],int_local[l_idx:u_idx],cfreq,peak_int,x,freq_sim=freq_sum[sim_l_idx:sim_u_idx],int_sim=int_sum[sim_l_idx:sim_u_idx])
+			obs_chunks[x] = ObsChunk(np.copy(freq_local[l_idx:u_idx]),np.copy(int_local[l_idx:u_idx]),cfreq,peak_int,x,freq_sim=np.copy(freq_sum[sim_l_idx:sim_u_idx]),int_sim=np.copy(int_sum[sim_l_idx:sim_u_idx]))
 			
 		else:
 		
-			obs_chunks[x] = ObsChunk(freq_local[l_idx:u_idx],int_local[l_idx:u_idx],cfreq,peak_int,x,freq_sim=freq_sim[sim_l_idx:sim_u_idx],int_sim=int_sim[sim_l_idx:sim_u_idx])
+			obs_chunks[x] = ObsChunk(np.copy(freq_local[l_idx:u_idx]),np.copy(int_local[l_idx:u_idx]),cfreq,peak_int,x,freq_sim=np.copy(freq_sim[sim_l_idx:sim_u_idx]),int_sim=np.copy(int_sim[sim_l_idx:sim_u_idx]))
 
 	#for iterating convenience, we make an obs_list
 	
@@ -4504,7 +4505,94 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 		
 		if blank_lines is True:
 		
-			obs.intensity[abs(obs.intensity) > flag_int_thresh*obs.rms] = np.nan		
+			if blank_keep_range is None:
+		
+				obs.intensity[abs(obs.intensity) > flag_int_thresh*obs.rms] = np.nan
+				
+			else:
+			
+				#we need to figure out what range *not* to blank in from -x km/s to +y km/s from blank_keep_range = [-x,+y]
+				
+				#first, get the frequencies associated with the lower and upper bounds
+				
+				l_freq = obs.cfreq + blank_keep_range[0]*obs.cfreq/ckm #here, blank_keep_range[0] should be negative
+				u_freq = obs.cfreq + blank_keep_range[1]*obs.cfreq/ckm	
+
+				#now find those indices
+				
+				l_idx = find_nearest(obs.frequency,l_freq)
+				u_idx = find_nearest(obs.frequency,u_freq)
+				
+				l_sim_idx = find_nearest(obs.freq_sim,l_freq)
+				u_sim_idx = find_nearest(obs.freq_sim,u_freq)				
+				
+				#chunk out this portion to keep it safe
+				
+				tmp_chunk = np.copy(obs.intensity[l_idx:u_idx])
+				tmp_sim_chunk = np.copy(obs.int_sim[l_sim_idx:u_sim_idx])
+				
+				obs.intensity[l_idx:u_idx] = np.nan
+				obs.int_sim[l_sim_idx:u_sim_idx] = np.nan
+				
+				obs.set_rms()
+				
+# 				tmp_int_a = np.copy(obs.intensity)
+# 				tmp_int_b = np.copy(obs.int_sim)				
+				
+				#blank obs.intensity
+				
+				obs.intensity[abs(obs.intensity) > flag_int_thresh*obs.rms] = np.nan
+				obs.int_sim[abs(obs.int_sim) > 0.0] = np.nan
+				
+# 				tmp_int_c = np.copy(obs.intensity)
+# 				tmp_int_d = np.copy(obs.int_sim)
+				
+				#chunk the safe range back in
+				
+				obs.intensity[l_idx:u_idx] = np.copy(tmp_chunk)
+				obs.int_sim[l_sim_idx:u_sim_idx] = np.copy(tmp_sim_chunk)
+				
+# 				plt.close('freq vs int original')				
+# 				plt.close('freq_sim vs int_sim original')				
+# 				plt.close('freq vs int blanked')				
+# 				plt.close('freq_sim vs int_sim blanked')				
+# 				plt.close('freq vs int stitched')
+# 				plt.close('freq_sim vs int_sim stitched')
+
+# 				fig = plt.figure(num='freq vs int original')
+# 
+# 				plt.plot(obs.frequency,tmp_int_a,color='black')
+# 				
+# 				fig = plt.figure(num='freq_sim vs int_sim original')
+# 				
+# 				plt.plot(obs.freq_sim,tmp_int_b)
+# 				
+# 				fig = plt.figure(num='freq vs int blanked')
+# 				
+# 				plt.plot(obs.frequency,tmp_int_c)	
+# 				
+# 				fig = plt.figure(num='freq_sim vs int_sim blanked')
+# 				
+# 				plt.plot(obs.freq_sim,tmp_int_d)			
+# 				
+# 				fig = plt.figure(num='freq vs int stitched')
+# 				
+# 				plt.plot(obs.frequency,obs.intensity)	
+# 				
+# 				fig = plt.figure(num='freq_sim vs int_sim stitched')
+# 				
+# 				plt.plot(obs.freq_sim,obs.int_sim)										
+				
+# 				obs.set_rms()
+				
+
+								
+# 				print(np.nanmin(obs.frequency),np.nanmax(obs.frequency))
+# 				print(obs.cfreq)
+# 				print('\n\n')
+				
+				
+				
 
 	#now we have to figure out the weights for the arrays.  We start by finding the maximum line height.
 		
@@ -5035,7 +5123,7 @@ def matched_filter(x_obs,y_obs,y_filter,filter_range=[-2,2]):
 	
 	int_mf_tmp = np.copy(int_mf)
 	
-	int_mf_tmp[int(0.45*len_mf):int(0.55*len_mf)] = np.nan
+	int_mf_tmp[int(0.40*len_mf):int(0.60*len_mf)] = np.nan
 	
 	mf_rms = get_rms(int_mf_tmp)
 	
@@ -5495,9 +5583,9 @@ def get_rms(intensity):
 	
 	rms = np.sqrt(np.nanmean(np.square(tmp_int)))
 	
-	while x > 5*rms:
+	while x > 3*rms:
 	
-		for chan in np.where(tmp_int > 5*rms)[0]:
+		for chan in np.where(tmp_int > 3*rms)[0]:
 			tmp_int[chan] = np.nan
 			
 		rms = np.sqrt(np.nanmean(np.square(tmp_int)))
