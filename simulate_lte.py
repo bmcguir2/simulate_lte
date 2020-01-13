@@ -80,6 +80,8 @@
 # 6.40 - adds ability to simulate spectra based on observations
 # 6.41 - fixes bug in mf script
 # 6.42 - adds option to blank lines not in central portions of stacks and mfs
+# 6.43 - adds option to return max mf response within range
+# 6.44 - adds thioacetaldehyde partition function; fixes edge case with glow
 
 #############################################################
 #							Preamble						#
@@ -119,7 +121,7 @@ matplotlib.rc('text.latex',preamble=r'\usepackage{cmbright}')
 
 
 
-version = 6.42
+version = 6.43
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -1097,7 +1099,13 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 			
 		elif T > 300:
 		
-			print('Warning: Extrapolating Q beyond 300 K for this molecule gets progressively iffier.')		
+			print('Warning: Extrapolating Q beyond 300 K for this molecule gets progressively iffier.')	
+			
+	elif 'thioaa' in catalog_file.lower():
+	
+		Q = -150.699838 + 36.00734443162136*T + 0.5803430978982798*T**2 - 0.0002443275581575372*T**3 + 1.058207372030315e-05*T**4 - 2.989232438909946e-08*T**5 + 2.857876456157256e-11*T**6
+		
+		print('Warning: This partition function *includes* the vt=1 first excited torsional state.  Extrapolation below 10 K or above 300 K is dangerous as well.')
 		
 	else:
 	
@@ -1224,20 +1232,23 @@ def calc_qvib(vibs,T):
 	if vibs == None:
 	
 		qvib = 1
-		
+
 	else:
 	
 		qvib = 1
-		
+	
 		for x in vibs:
 		
-			#We sum over all the quanta of vibration possible in that mode (ish - we use 100, but it'll never matter much past 1 or 2)
-			
-			for y in range(100):
+			qvib_x = 0
 		
-				qvib *= 1/(1-np.exp(-((y+0.5)*x/(0.695*T))))			
+			for y in range(100):
+			
+				qvib_x += (np.exp(-x*y/(0.695*T)))
 				
+			qvib *= qvib_x
+			
 	return qvib	
+
 
 #scale_temp scales the simulated intensities to the new temperature
 
@@ -2482,9 +2493,11 @@ def load_mol(x,format='spcat',vib_states=None):
 	
 	lstate_qns = np.vstack((qn7, qn8, qn9, qn10, qn11, qn12)).T
 	
-	ustate_qns_hash = np.sum(ustate_qns*np.array([1,10,100,1000,10000,100000]), axis=1)
+	global ustate_qns_hash, lstate_qns_hash
 	
-	lstate_qns_hash = np.sum(lstate_qns*np.array([1,10,100,1000,10000,100000]), axis=1)
+	ustate_qns_hash = np.sum(ustate_qns*np.array([1,10E3,10E6,10E9,10E12,10E15]), axis=1)
+	
+	lstate_qns_hash = np.sum(lstate_qns*np.array([1,10E3,10E6,10E9,10E12,10E15]), axis=1)
 	
 	equivalency = np.equal.outer(ustate_qns_hash, lstate_qns_hash)
 	
@@ -4323,7 +4336,7 @@ def find_nearest(array,value):
 	
 #velocity_stack does a velocity stacking analysis using the current ll and ul, and the current simulation, using lines that are at least 0.1 sigma or larger, with the brightest simulated line scaled to be 1 sigma.
 
-def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,plot_chunks=False,blank_lines=False,blank_keep_range=None,fix_y=False,line_stats=True,pdf=False,labels_size=12,figsize=(6,4),thick=1.0,plotlabel=None,ylims=None,calc_sigma=False,label_sigma=False,plot_sigma=False,use_sum=False,sum_width_extend=3,plot_sim_chunks=False,plot_sum_range=False,plot_sim_stack=False,stack_out=None,sim_out=None,npz_out=False,mf=False,mf_out=None,mf_vmult=5.,mf_label=None,mf_pdf=False,filter_range=[-2,2],mf_ylims=None):
+def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags = False, vel_width = 40, v_res = 0.1,plot_chunks=False,blank_lines=False,blank_keep_range=None,fix_y=False,line_stats=True,pdf=False,labels_size=12,figsize=(6,4),thick=1.0,plotlabel=None,ylims=None,calc_sigma=False,label_sigma=False,plot_sigma=False,use_sum=False,sum_width_extend=3,plot_sim_chunks=False,plot_sum_range=False,plot_sim_stack=False,stack_out=None,sim_out=None,npz_out=False,mf=False,mf_out=None,mf_vmult=5.,mf_label=None,mf_pdf=False,filter_range=[-2,2],mf_ylims=None,mf_return=False,mf_return_range=[-3*dV,3*dV]):
 
 	if flag_lines is True and blank_lines is True:
 	
@@ -5057,8 +5070,19 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 		if pdf is not False:
 	
 			plt.savefig(pdf,format='pdf',transparent=True,bbox_inches='tight')
+			
+		if mf_return is True:
 	
-		return
+			mf_l_idx = find_nearest(velocity_mf,mf_return_range[0])
+			mf_u_idx = find_nearest(velocity_mf,mf_return_range[1])
+		
+			print('Yes')
+	
+			return np.nanmax(intensity_mf[mf_l_idx:mf_u_idx])		
+			
+		else:	
+	
+			return
 		
 	#Otherwise, we find the indices for the given velocity range.  Ranges are specified in the calc_sigma = [0,1,2,3], where 0 and 1 are the lower and upper limits to the line you want to integrate, and 2 and 3 are the lower and upper limits for the region the noise is taken from.
 	
@@ -5103,8 +5127,19 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	if pdf is not False:
 	
 		plt.savefig(pdf,format='pdf',transparent=True,bbox_inches='tight')	
+		
+	if mf_return is True:
+	
+		mf_l_idx = find_nearest(velocity_mf,mf_return_range[0])
+		mf_u_idx = find_nearest(velocity_mf,mf_return_range[1])
+		
+		print('Yes')
+	
+		return np.nanmax(intensity_mf[mf_l_idx:mf_u_idx])
+	
+	else:		
 
-	return
+		return
 
 #matched_filter pushes a matched filter through the given sets of stuff and returns the result
 
@@ -7106,13 +7141,15 @@ def find_best_ulim(sep=dV,n=1,search_n=100,rms_spread=10,print_results=False,aut
 		
 #generate an upper limit report based on the best ulim automatically
 
-def autoset_ulim_c(rms_spread=10,print_results=True,make_pp=True,print_best_line=True,absorption=False):
+def autoset_ulim_c(rms_spread=10,print_results=True,make_pp=True,print_best_line=True,absorption=False,auto_limits=True):
 
 	global ll,ul
 	
-	autoset_limits()
+	if auto_limits is True:
 	
-	best_freq = find_best_ulim()[0]
+		autoset_limits()
+	
+	best_freq = find_best_ulim(auto_limits=auto_limits)[0]
 	
 	dV_f = dV*best_freq/ckm
 	
@@ -7121,10 +7158,13 @@ def autoset_ulim_c(rms_spread=10,print_results=True,make_pp=True,print_best_line
 	
 	set_ulim_c(ll,ul,absorption=absorption)
 	
-	autoset_limits()
+	if auto_limits is True:
+	
+		autoset_limits()
+		
 	modC(C)
 	
-	best_freq = find_best_ulim()[0]
+	best_freq = find_best_ulim(auto_limits=auto_limits)[0]
 	dV_f = dV*best_freq/ckm
 	
 	ll = float(best_freq - rms_spread*dV_f)
