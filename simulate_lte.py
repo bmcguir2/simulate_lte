@@ -82,6 +82,8 @@
 # 6.42 - adds option to blank lines not in central portions of stacks and mfs
 # 6.43 - adds option to return max mf response within range
 # 6.44 - adds thioacetaldehyde partition function; fixes edge case with glow
+# 6.45 - adds ability to check beam size
+# 6.46 - adds utility functions for quickly checking obs for lines
 
 #############################################################
 #							Preamble						#
@@ -121,7 +123,7 @@ matplotlib.rc('text.latex',preamble=r'\usepackage{cmbright}')
 
 
 
-version = 6.43
+version = 6.46
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -1543,7 +1545,7 @@ def apply_beam(frequency,intensity,source_size,dish_size,synth_beam,interferomet
 		dilution_factor = np.copy(beam_size)
 	
 		dilution_factor = source_size**2/(beam_size**2 + source_size**2)
-	
+		
 		intensity_diluted = np.copy(intensity)
 	
 		intensity_diluted *= dilution_factor
@@ -1584,6 +1586,22 @@ def apply_beam(frequency,intensity,source_size,dish_size,synth_beam,interferomet
 	
 		return intensity_diluted
 		
+def get_beam(frequency,dish_size):
+
+	#Convert those frequencies to Hz
+
+	hz_freqs = 1.0E6*frequency
+
+	#Convert to meters
+
+	wavelength = cm/hz_freqs
+
+	#create an array to hold beam sizes
+
+	beam_size = wavelength * 206265 * 1.22 / dish_size
+	
+	return beam_size	
+
 #invert_beam applies a beam dilution correction factor in the other direction (used for tbg corrections - takes an observed tbg and returns what it actually should be un-diluted)
 
 def invert_beam(frequency,intensity,source_size,dish_size):
@@ -4106,7 +4124,7 @@ def find_peaks(frequency,intensity,fwhm,sigma=3,width_tweak=1.0):
 
 		peak_indices = peakutils.indexes(intensity_tmp,thres=rms_thres,min_dist=int(fwhm_chan*.5))
 		
-		return peak_indices,rms,frequency_mask,intensity_mask		
+		return peak_indices,rms		
 
 # find peaks in velocity space spectra
 
@@ -6357,7 +6375,7 @@ def make_postage_plot(PP):
 	
 	if PP.pdf is not False:
 	
-		plt.savefig(PP.pdf,format='pdf',transparent=True)
+		plt.savefig(PP.pdf,format='pdf',transparent=True,bbox_inches='tight')
 
 	return
 
@@ -7217,6 +7235,151 @@ def get_subtraction(obsx,obsy,simx,simy,ll,ul,return_sim=False):
 
 		return total
 		
+#do a quick and dirty peak find routine for the input observations, optionally writing out the results
+
+def find_obs_peaks(outfile=None,sigma=5,start_chan=0,end_chan=None,chanstep=500,print_results=False,return_results=False):
+
+	line_freqs = []
+	line_ints = []
+	rms_level = []
+
+	done = False
+
+	llpt = 0
+	ulpt = chanstep
+
+	while done is False:
+
+		peak_indices, tmp_rms = find_peaks(freq_obs[llpt:ulpt],int_obs[llpt:ulpt],0.3,sigma=sigma)
+	
+		for x in peak_indices:
+	
+			line_freqs.append(freq_obs[x+llpt])
+			line_ints.append(int_obs[x+llpt])
+			rms_level.append(tmp_rms)	
+	
+		llpt += chanstep
+		ulpt += chanstep
+		
+		if end_chan is None:
+	
+			if llpt > len(freq_obs):
+	
+				done = True
+		
+			if ulpt > len(freq_obs):
+	
+				done = True
+
+		else:
+		
+			if llpt > end_chan:
+	
+				done = True
+		
+			if ulpt > end_chan:
+	
+				done = True		
+				
+	if print_results is True:
+	
+		print('Spectrum contains {} peaks above {}sigma.\n' .format(len(line_freqs),sigma))
+
+	if outfile is not None:
+	
+		if type(outfile) is not str:
+		
+			print('Output file must be a string.')
+			
+			if return_results is True:
+			
+				return line_freqs,line_ints,rms_level
+	
+		with open(outfile, 'w') as output:
+
+			for x in range(len(line_freqs)):
+	
+				output.write('{} {} {}\n' .format(line_freqs[x],line_ints[x],rms_level[x]))	
+
+	if return_results is True:
+	
+		return line_freqs,line_ints,rms_level
+	
+#do a quick and dirty find routine on bright channels for the input observations, optionally writing out the results
+
+def find_obs_brights(outfile=None,sigma=5,start_chan=0,end_chan=None,chanstep=500,print_results=False,return_results=False):
+
+	i = 0
+
+	done = False
+
+	bright_freq = []
+	bright_int = []
+
+	llpt = 0
+	ulpt = chanstep
+
+	while done is False:
+
+		tmp_rms = get_rms(int_obs[llpt:ulpt])
+	
+		i += len(np.where(int_obs[llpt:ulpt] > 5*tmp_rms)[0])
+	
+		for chan in np.where(int_obs[llpt:ulpt] > 5*tmp_rms)[0]:
+	
+			bright_freq.append(freq_obs[chan+llpt])
+			bright_int.append(int_obs[chan+llpt])
+	
+		llpt += chanstep
+		ulpt += chanstep
+		
+		if end_chan is None:
+	
+			if llpt > len(freq_obs):
+	
+				done = True
+		
+			if ulpt > len(freq_obs):
+	
+				done = True
+
+		else:
+		
+			if llpt > end_chan:
+	
+				done = True
+		
+			if ulpt > end_chan:
+	
+				done = True			
+				
+	if print_results is True:
+	
+		print ('I found {} channels > 5 sigma out of {} total.' .format(i,len(int_obs)))
+		print ('That is a filling factor of {:.2e}.' .format(i/len(int_obs)))
+		print ('Alternatively, that is one bright channel for every {:.1f} dark ones.' .format(len(int_obs)/i))	
+
+	if outfile is not None:
+	
+		if type(outfile) is not str:
+		
+			print('Output file must be a string.')
+			
+			if return_results is True:
+			
+				return bright_freq,bright_int
+	
+		with open(outfile, 'w') as output:
+
+			for x in range(len(bright_freq)):
+	
+				output.write('{} {}\n' .format(bright_freq[x],bright_int[x]))	
+	
+	if return_results is True:	
+	
+		return bright_freq,bright_int
+
+
 #############################################################
 #						Custom Aliases	   					#
 #############################################################
