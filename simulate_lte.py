@@ -84,6 +84,7 @@
 # 6.44 - adds thioacetaldehyde partition function; fixes edge case with glow
 # 6.45 - adds ability to check beam size
 # 6.46 - adds utility functions for quickly checking obs for lines
+# 6.47 - adds ability to set individual ylims on postage stamp plots
 
 #############################################################
 #							Preamble						#
@@ -123,7 +124,7 @@ matplotlib.rc('text.latex',preamble=r'\usepackage{cmbright}')
 
 
 
-version = 6.46
+version = 6.47
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -5894,7 +5895,11 @@ def make_postage_plot(PP):
 		
 		#if y limits are set, then we use those
 		
-		if PP.ylims != None:
+		if PS.ylims != None:
+		
+			cax.set_ylim(PS.ylims[0],PS.ylims[1])
+		
+		elif PP.ylims != None:
 		
 			cax.set_ylim(PP.ylims[0],PP.ylims[1])
 					
@@ -8020,13 +8025,14 @@ class PostagePlot(object):
 		
 class PostageStamp(object):
 
-	def __init__(self,cfreq,error=None,label=None,box=False):
+	def __init__(self,cfreq,error=None,label=None,box=False,ylims=None):
 	
 		self.cfreq = cfreq
 		self.label = label
 		self.error = error
 		self.box = box
 		self.vel_error = None
+		self.ylims=ylims
 		
 		self.set_vel_error()
 	
