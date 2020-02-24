@@ -85,6 +85,7 @@
 # 6.45 - adds ability to check beam size
 # 6.46 - adds utility functions for quickly checking obs for lines
 # 6.47 - adds ability to set individual ylims on postage stamp plots
+# 6.48 - updates matched filter to use correlate rather than convolve
 
 #############################################################
 #							Preamble						#
@@ -124,7 +125,7 @@ matplotlib.rc('text.latex',preamble=r'\usepackage{cmbright}')
 
 
 
-version = 6.47
+version = 6.48
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -870,7 +871,37 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 			
 		elif T < 5:
 		
-			print('Warning: Calculations for Q below 5 K are probably off by ~30%...')								
+			print('Warning: Calculations for Q below 5 K are probably off by ~30%...')		
+			
+	elif 'nh2cn' in catalog_file.lower():
+	
+		if T > 50:
+		
+			Q = 2.0081*T**1.5972 - 259.42
+			
+		elif T < 50:
+		
+			Q = 0.81*T**1.7753 + 2.7549	
+			
+		if T > 300:
+		
+			print('Warning: Extrapolating Q beyond 300 K for this molecule gets progressively iffier.')
+			
+		elif T < 10:
+		
+			print('Warning: Extrapolating Q below 10 K for this molecule gets progressively iffier.')				
+
+	elif 'nh2cho' in catalog_file.lower():
+		
+		Q = 5.5769*T**1.5 - 9.2166	
+			
+		if T > 300:
+		
+			print('Warning: Extrapolating Q beyond 300 K for this molecule gets progressively iffier.')
+			
+		elif T < 10:
+		
+			print('Warning: Extrapolating Q below 10 K for this molecule gets progressively iffier.  Error in Q at 9.375K is ~8%.')								
 		
 	elif 'hc11n' in catalog_file.lower():
 	
@@ -4961,7 +4992,7 @@ def velocity_stack(drops =[], flag_lines=False,flag_int_thresh = 5, print_flags 
 	
 	if mf is True:
 		
-		int_mf = matched_filter(vel_stacked,int_stacked,int_sim_stacked)
+		int_mf = matched_filter(vel_stacked,int_stacked,int_sim_stacked,filter_range=filter_range)
 
 		#plotting!	
 	
@@ -5169,7 +5200,7 @@ def matched_filter(x_obs,y_obs,y_filter,filter_range=[-2,2]):
 	l_idx = find_nearest(x_obs,filter_range[0])
 	u_idx = find_nearest(x_obs,filter_range[1])	
 	
-	int_mf = np.convolve(y_obs,y_filter[l_idx:u_idx],mode='valid')
+	int_mf = np.correlate(y_obs,y_filter[l_idx:u_idx],mode='valid')
 	
 	#blank out the central channels for doing the rms
 	
