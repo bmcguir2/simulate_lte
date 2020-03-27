@@ -86,6 +86,7 @@
 # 6.46 - adds utility functions for quickly checking obs for lines
 # 6.47 - adds ability to set individual ylims on postage stamp plots
 # 6.48 - updates matched filter to use correlate rather than convolve
+# 6.49 - propynal and thiopropynal partition functions
 
 #############################################################
 #							Preamble						#
@@ -125,7 +126,7 @@ matplotlib.rc('text.latex',preamble=r'\usepackage{cmbright}')
 
 
 
-version = 6.48
+version = 6.49
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -966,6 +967,14 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 	elif 'propargylcyanide' in catalog_file.lower() or 'propargyl_cyanide' in catalog_file.lower():
 	
 		Q = 41.542*T**1.5008 + 1.5008
+	
+	elif 'propynal_barros' in catalog_file.lower():
+	
+		Q = 4.2770042*T**1.50582693 + 5.23724877
+		
+	elif 'thiopropynal' in catalog_file.lower():
+	
+		Q = 8.44164177*T**1.50477591 + 5.91902047
 	
 	elif 'pyrrole' in catalog_file.lower():
 	
