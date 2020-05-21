@@ -87,6 +87,8 @@
 # 6.47 - adds ability to set individual ylims on postage stamp plots
 # 6.48 - updates matched filter to use correlate rather than convolve
 # 6.49 - propynal and thiopropynal partition functions
+# 6.50 - bug fix for print_lines
+# 6.51 - read a molsim formatted catalog
 
 #############################################################
 #							Preamble						#
@@ -124,9 +126,12 @@ from scipy import signal
 matplotlib.rc('text', usetex = True)
 matplotlib.rc('text.latex',preamble=r'\usepackage{cmbright}')
 
+#matplotlib.rc('text', usetex = False)
+#matplotlib.rc('text.latex',preamble='')
 
 
-version = 6.49
+
+version = 6.51
 
 h = 6.626*10**(-34) #Planck's constant in J*s
 k = 1.381*10**(-23) #Boltzmann's constant in J/K
@@ -2505,93 +2510,127 @@ def load_mol(x,format='spcat',vib_states=None):
 		pass	
 	
 	catalog_file = x
-	
-	raw_array = read_cat(catalog_file)
-
-	catalog = splice_array(raw_array)
-
-	frequency = np.copy(catalog[0])
-	error = np.copy(catalog[1])
-	logint = np.copy(catalog[2])
-	dof = np.copy(catalog[3])
-	elower = np.asarray(catalog[4])
-	gup = np.asarray(catalog[5])
-	tag = np.asarray(catalog[6])
-	qnformat = np.asarray(catalog[7])		
-	qn1 = np.asarray(catalog[8])
-	qn2 = np.asarray(catalog[9])
-	qn3 = np.asarray(catalog[10])
-	qn4 = np.asarray(catalog[11])
-	qn5 = np.asarray(catalog[12])
-	qn6 = np.asarray(catalog[13])
-	qn7 = np.asarray(catalog[14])
-	qn8 = np.asarray(catalog[15])
-	qn9 = np.asarray(catalog[16])
-	qn10 = np.asarray(catalog[17])
-	qn11 = np.asarray(catalog[18])
-	qn12 = np.asarray(catalog[19])
 	vibs = vib_states
+	
+	if format == 'spcat':
+	
+		raw_array = read_cat(catalog_file)
 
-	eupper = np.copy(elower)
+		catalog = splice_array(raw_array)
 
-	eupper = elower + frequency/29979.2458
+		frequency = np.copy(catalog[0])
+		error = np.copy(catalog[1])
+		logint = np.copy(catalog[2])
+		dof = np.copy(catalog[3])
+		elower = np.asarray(catalog[4])
+		gup = np.asarray(catalog[5])
+		tag = np.asarray(catalog[6])
+		qnformat = np.asarray(catalog[7])		
+		qn1 = np.asarray(catalog[8])
+		qn2 = np.asarray(catalog[9])
+		qn3 = np.asarray(catalog[10])
+		qn4 = np.asarray(catalog[11])
+		qn5 = np.asarray(catalog[12])
+		qn6 = np.asarray(catalog[13])
+		qn7 = np.asarray(catalog[14])
+		qn8 = np.asarray(catalog[15])
+		qn9 = np.asarray(catalog[16])
+		qn10 = np.asarray(catalog[17])
+		qn11 = np.asarray(catalog[18])
+		qn12 = np.asarray(catalog[19])
 
-	qns = det_qns(qnformat) #figure out how many qns we have for the molecule
+		eupper = np.copy(elower)
 
-	intensity = convert_int(logint)
-	
-	tmp_freq = np.copy(frequency)
-	
-	tmp_freq += (-vlsr)*tmp_freq/ckm
-	
-	Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file,vibs=None)
-	
-	#generate a unique set of energy levels as defined by quantum numbers
-	
-	ustate_qns = np.vstack((qn1, qn2, qn3, qn4, qn5, qn6)).T
-	
-	lstate_qns = np.vstack((qn7, qn8, qn9, qn10, qn11, qn12)).T
-	
-	global ustate_qns_hash, lstate_qns_hash
-	
-	ustate_qns_hash = np.sum(ustate_qns*np.array([1,10E3,10E6,10E9,10E12,10E15]), axis=1)
-	
-	lstate_qns_hash = np.sum(lstate_qns*np.array([1,10E3,10E6,10E9,10E12,10E15]), axis=1)
-	
-	equivalency = np.equal.outer(ustate_qns_hash, lstate_qns_hash)
-	
-	idx = np.argmax(equivalency, axis=0)
-	
-	glow = gup[idx]
-	
-	glow[np.sum(equivalency, axis=0)==0] = 1
+		eupper = elower + frequency/29979.2458
 
-	#from CDMS website
+		qns = det_qns(qnformat) #figure out how many qns we have for the molecule
 
-	sijmu = (exp(np.float64(-(elower/0.695)/CT)) - exp(np.float64(-(eupper/0.695)/CT)))**(-1) * ((10**logint)/frequency) * (24025.120666) * Q
+		intensity = convert_int(logint)
+	
+		tmp_freq = np.copy(frequency)
+	
+		tmp_freq += (-vlsr)*tmp_freq/ckm
+	
+		Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file,vibs=None)
+	
+		#generate a unique set of energy levels as defined by quantum numbers
+	
+		ustate_qns = np.vstack((qn1, qn2, qn3, qn4, qn5, qn6)).T
+	
+		lstate_qns = np.vstack((qn7, qn8, qn9, qn10, qn11, qn12)).T
+	
+		global ustate_qns_hash, lstate_qns_hash
+	
+		ustate_qns_hash = np.sum(ustate_qns*np.array([1,10E3,10E6,10E9,10E12,10E15]), axis=1)
+	
+		lstate_qns_hash = np.sum(lstate_qns*np.array([1,10E3,10E6,10E9,10E12,10E15]), axis=1)
+	
+		equivalency = np.equal.outer(ustate_qns_hash, lstate_qns_hash)
+	
+		idx = np.argmax(equivalency, axis=0)
+	
+		glow = gup[idx]
+	
+		glow[np.sum(equivalency, axis=0)==0] = 1
+
+		#from CDMS website
+
+		sijmu = (exp(np.float64(-(elower/0.695)/CT)) - exp(np.float64(-(eupper/0.695)/CT)))**(-1) * ((10**logint)/frequency) * (24025.120666) * Q
 
 	
-	#aij formula from CDMS.  Verfied it matched spalatalogue's values
+		#aij formula from CDMS.  Verfied it matched spalatalogue's values
 	
-	aij = 1.16395 * 10**(-20) * frequency**3 * sijmu / gup
+		aij = 1.16395 * 10**(-20) * frequency**3 * sijmu / gup
+		
+	def _load_molsim(filein):
+		'''
+		Reads in a catalog file from molsim
+		'''
+		npz_dict = np.load(filein,allow_pickle=True)	
+		new_dict = {}
+		for x in npz_dict:
+			new_dict[x] = npz_dict[x]
+
+		return new_dict
+
+	if format == 'molsim':
+	
+		cat_dict = _load_molsim(catalog_file)
+		
+		frequency = cat_dict['frequency']
+		error = cat_dict['freq_err']
+		logint = cat_dict['logint']
+		dof = cat_dict['dof']
+		elower = cat_dict['elow']*0.695
+		gup = cat_dict['gup']
+		tag = cat_dict['tag']
+		qnformat = cat_dict['qnformat']	
+		qn1 = cat_dict['qn1up']
+		qn2 = cat_dict['qn2up']
+		qn3 = cat_dict['qn3up']
+		qn4 = cat_dict['qn4up']
+		qn5 = cat_dict['qn5up']
+		qn6 = cat_dict['qn6up']
+		qn7 = cat_dict['qn1low']
+		qn8 = cat_dict['qn2low']
+		qn9 = cat_dict['qn3low']
+		qn10 = cat_dict['qn4low']
+		qn11 = cat_dict['qn5low']
+		qn12 = cat_dict['qn6low']
+		eupper = cat_dict['eup']*0.695
+		glow = cat_dict['glow']
+		sijmu = cat_dict['sijmu']
+		aij = cat_dict['aij']
+		qns = det_qns(qnformat)
+		
+		intensity = convert_int(logint)
+		tmp_freq = np.copy(frequency)
+		tmp_freq += (-vlsr)*tmp_freq/ckm
+		Q = calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,CT,catalog_file,vibs=None)
 	
 	print('A value of Q({}) = {} was used to calculated the Sijmu^2 and Aij values for this species.' .format(int(CT),int(Q)))
 	
-	freq_sim,int_sim,int_tau=run_sim(tmp_freq,intensity,T,dV,C)
-	
-	# if gauss == True:
-# 	
-# 		gauss = False
-# 		
-# 		freq_stick,int_stick=run_sim(tmp_freq,intensity,T,dV,C)
-# 		
-# 		gauss = True
-# 		
-# 	else:
-# 	
-# 		freq_stick = np.asarray([freq_sim])
-# 		int_stick = np.asarray([int_sim])
-		
+	freq_sim,int_sim,int_tau=run_sim(tmp_freq,intensity,T,dV,C)		
 
 	if first_run == True:
 		make_plot()
@@ -3757,9 +3796,9 @@ def print_lines(mol='current',thresh=float('-inf'),rest=True,mK=False,return_arr
 			
 					frequency_tmp_shift = frequency[y][i] - vlsr*frequency[y][i]/3E5
 					
-					if len(qn_str) < 15:
+					if len(qn_string) < 15:
 					
-						qn_str += (len(qn_str)-15)*' '				
+						qn_string += (len(qn_string)-15)*' '				
 	
 					if mK == True:
 					
@@ -3771,9 +3810,9 @@ def print_lines(mol='current',thresh=float('-inf'),rest=True,mK=False,return_arr
 				
 				else:
 
-					if len(qn_str) < 15:
+					if len(qn_string) < 15:
 					
-						qn_str += (len(qn_str)-15)*' '			
+						qn_string += (len(qn_string)-15)*' '			
 
 					
 					if mK == True:
@@ -3830,7 +3869,7 @@ def gauss_func(x, dT, v, dV):
 
 #gauss_fit does a Gaussian fit on lines in the data, specified in tuples: p = [[dT1,v1,dV1],[dT2,v2,dV2],...] where dT1,v1,dV1 etc are the initial guesses for the intensity, line center, and fwhm of the lines.  dT is in whatever units are being used in the observations, v is in whatever units are being used in the observations, and dV is in km/s.  By default, the amplitude is unconstrained, the center frequency is constrained to within 5 MHz of the guess, and the linewidth is constrained to within 20% of the guess.  These can be changed.
 
-def gauss_fit(p,plot=True,dT_bound=np.inf,v_bound=5.0,dV_bound=0.2):
+def gauss_fit(p_array,plot=True,dT_bound=np.inf,v_bound=5.0,dV_bound=0.2,sigma=None,return_results=False,print_results=True):
 
 	'''
 	#gauss_fit does a Gaussian fit on lines in the data, specified in tuples: p = [[dT1,v1,dV1],[dT2,v2,dV2],...] where dT1,v1,dV1 etc are the initial guesses for the intensity, line center, and fwhm of the lines.  dT is in whatever units are being used in the observations, v is in whatever units are being used in the observations, and dV is in km/s.  By default, the amplitude is unconstrained, the center frequency is constrained to within 5 MHz of the guess, and the linewidth is constrained to within 20% of the guess.  These can be changed.
@@ -3841,18 +3880,27 @@ def gauss_fit(p,plot=True,dT_bound=np.inf,v_bound=5.0,dV_bound=0.2):
 	coeff = []
 	var_matrix = []	
 	err_matrix = []
-	fit = np.copy(data[0])
+	fit = np.copy(freq_sim)
 	fit *= 0.0
 		
-	for x in range(len(p)):
+	for x in range(len(p_array)):
 	
-		temp = curve_fit(gauss_func, data[0], data[1], p0 = p[x], bounds=([-dT_bound,p[x][1]-v_bound,p[x][2]*(1-dV_bound)],[dT_bound,p[x][1]+v_bound,p[x][2]*(1+dV_bound)]))
+		if sigma is None:
+	
+			temp = curve_fit(gauss_func, data[0], data[1], p0 = p_array[x], bounds=([p_array[x][0]-(p_array[x][0]*dT_bound),p_array[x][1]-v_bound,p_array[x][2]*(1-dV_bound)],[p_array[x][0]+(p_array[x][0]*dT_bound),p_array[x][1]+v_bound,p_array[x][2]*(1+dV_bound)]))
+			
+		else:
+		
+			sig_tmp = np.copy(data[0])*0.0
+			sig_tmp += sigma[x]
+		
+			temp = curve_fit(gauss_func, data[0], data[1], p0 = p_array[x], sigma=sig_tmp, bounds=([p_array[x][0]-(p_array[x][0]*dT_bound),p_array[x][1]-v_bound,p_array[x][2]*(1-dV_bound)],[p_array[x][0]+(p_array[x][0]*dT_bound),p_array[x][1]+v_bound,p_array[x][2]*(1+dV_bound)]))
 		
 		coeff.append(temp[0])
 		var_matrix.append(temp[1])
 		err_matrix.append(np.sqrt(np.diag(temp[1])))
 		
-		fit += gauss_func(data[0], coeff[x][0], coeff[x][1], coeff[x][2])
+		fit += gauss_func(freq_sim, coeff[x][0], coeff[x][1], coeff[x][2])
 
 	if plot == True:
 	
@@ -3863,17 +3911,20 @@ def gauss_fit(p,plot=True,dT_bound=np.inf,v_bound=5.0,dV_bound=0.2):
 					
 		clear_line('Gauss Fit')
 	
-		lines['Gauss Fit'] = ax.plot(data[0],fit,color='cyan',label='Gauss Fit',linestyle= '-', gid='gfit', zorder = 50000)
+		lines['Gauss Fit'] = ax.plot(freq_sim,fit,color='cyan',label='Gauss Fit',linestyle= '-', gid='gfit', zorder = 50000)
  		
 		with warnings.catch_warnings():
 			warnings.simplefilter('ignore')
 			ax.legend()
 		fig.canvas.draw()		
 	
-	print('Gaussian Fit Results to {} Lines' .format(len(p)))
+	print('Gaussian Fit Results to {} Lines' .format(len(p_array)))
 	print('{:<20} \t {:<10} \t {:<10}' .format('Line Center','dT', 'dV'))
+	
+	print_array = []
+	results_array = []
 		
-	for x in range(len(p)):
+	for x in range(len(p_array)):
 	
 		dT_temp = coeff[x][0]
 		v_temp = coeff[x][1]
@@ -3883,7 +3934,19 @@ def gauss_fit(p,plot=True,dT_bound=np.inf,v_bound=5.0,dV_bound=0.2):
 		v_err = err_matrix[x][1]
 		dV_err = err_matrix[x][2]
 		
-		print('{:<.4f}({:<.4f}) \t {:^.3f}({:^.3f}) \t {:^.3f}({:^.3f})' .format(v_temp,v_err,dT_temp,dT_err,dV_temp,dV_err))
+		results_array.append([dT_temp,dT_err,v_temp,v_err,dV_temp,dV_err])
+		
+		print_array.append('{:<.4f}({:<.4f}) \t {:^.3f}({:^.3f}) \t {:^.3f}({:^.3f})' .format(v_temp,v_err,dT_temp,dT_err,dV_temp,dV_err))
+		
+	if print_results is True:
+	
+		for line in print_array:
+		
+			print(line)
+	
+	if return_results is True:
+			
+		return results_array
 		
 #make_gauss_params generates a parameters list for gaussian fitting.  Takes an input txt file which is first column frequencies and second column intensities.  
 
