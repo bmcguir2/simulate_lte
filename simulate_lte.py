@@ -909,6 +909,10 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 		
 			print('Warning: Extrapolating Q below 10 K for this molecule gets progressively iffier.  Error in Q at 9.375K is ~8%.')								
 		
+	elif 'hc13n' in catalog_file.lower():
+	
+		Q = 194.7950692278719*T + 0.1142372881295159
+	
 	elif 'hc11n' in catalog_file.lower():
 	
 		Q = 123.2554*T + 0.1381
@@ -1023,7 +1027,7 @@ def calc_q(qns,elower,qn7,qn8,qn9,qn10,qn11,qn12,T,catalog_file,vibs):
 		
 		if T == CT:
 		
-			Q = 37627.1111	
+			Q = 376227.1111	
 			
 		elif T > 40:
 		
@@ -1967,7 +1971,7 @@ def modT(x):
 		
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
-		ax.legend()
+		ax.legend(loc='upper right')
 	fig.canvas.draw()
 	
 	save_results('last.results')
@@ -2008,7 +2012,7 @@ def modC(x):
 		
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
-		ax.legend()
+		ax.legend(loc='upper right')
 	fig.canvas.draw()
 	
 	save_results('last.results')
@@ -2055,7 +2059,7 @@ def moddV(x):
 		
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
-		ax.legend()
+		ax.legend(loc='upper right')
 	fig.canvas.draw()
 	
 	save_results('last.results')
@@ -2096,7 +2100,7 @@ def modVLSR(x):
 	
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
-		ax.legend()
+		ax.legend(loc='upper right')
 	fig.canvas.draw()
 	
 	save_results('last.results')		
@@ -2166,7 +2170,7 @@ def make_plot():
 
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
-		ax.legend()
+		ax.legend(loc='upper right')
 		
 	fig.canvas.draw()
 	
@@ -2217,7 +2221,7 @@ def obs_on():
 		lines['obs'] = 	ax.plot(freq_obs,int_obs,color = 'black',label='obs',zorder=0)
 		with warnings.catch_warnings():
 			warnings.simplefilter('ignore')
-			ax.legend()
+			ax.legend(loc='upper right')
 		fig.canvas.draw()
 		save_results('last.results')
 	except:
@@ -2321,7 +2325,7 @@ def read_obs(x):
 		
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
-		ax.legend()
+		ax.legend(loc='upper right')
 	fig.canvas.draw()	
 	
 	if len(spec.split('.')) > 1:
@@ -2441,7 +2445,7 @@ def recall(x):
 		plt.get_fignums()[0]	
 		with warnings.catch_warnings():
 			warnings.simplefilter('ignore')
-			ax.legend()
+			ax.legend(loc='upper right')
 		fig.canvas.draw()
 	except:	
 		make_plot()	
@@ -2484,7 +2488,7 @@ def overplot(x,cchoice=None,thick=1.0,line_style='default'):
 	
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
-		ax.legend()
+		ax.legend(loc='upper right')
 	fig.canvas.draw()
 	
 	freq_sim = freq_temp
@@ -2659,7 +2663,7 @@ def load_mol(x,format='spcat',vib_states=None):
 
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
-		ax.legend()
+		ax.legend(loc='upper right')
 	fig.canvas.draw()	
 		
 	save_results('last.results')
@@ -2683,14 +2687,14 @@ def clear_line(x):
 		line.remove()
 		with warnings.catch_warnings():
 			warnings.simplefilter('ignore')
-			ax.legend()
+			ax.legend(loc='upper right')
 		fig.canvas.draw()	
 
 	except:
 		line[0].remove()
 		with warnings.catch_warnings():
 			warnings.simplefilter('ignore')
-			ax.legend()
+			ax.legend(loc='upper right')
 		fig.canvas.draw()	
 		
 #clear is an alias for clear_line
@@ -3053,7 +3057,7 @@ def overplot_sum():
 	
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
-		ax.legend()
+		ax.legend(loc='upper right')
 	fig.canvas.draw()	
 	
 #restore restores the state of the program from a save file, loading all stored spectra into memory, loads the previously active simulation into current, and restores the last active graph. x is a string with the filename of the restore file. The catalog files must be present, and named to match those in the save file.
@@ -3420,7 +3424,7 @@ def restore(x):
 			
 		with warnings.catch_warnings():
 			warnings.simplefilter('ignore')
-			ax.legend()
+			ax.legend(loc='upper right')
 		fig.canvas.draw()	
 		
 	#If we made it here, we were successful, so let's print out what we did
@@ -3435,7 +3439,7 @@ def fix_legend(x,lsize):
 	Modifies the legend to have x columns.  lsize can be {'xx-small', 'x-small', 'small', 'medium', 'large', 'x-large', 'xx-large'} or an int or float.
 	'''
 
-	plt.legend(ncol=x,prop={'size':lsize})
+	plt.legend(ncol=x,prop={'size':lsize},loc='upper right')
 	
 	fig.canvas.draw()	
 	
@@ -3637,8 +3641,8 @@ def plot_residuals():
 	ax1.set_ylim(ax2.get_ylim())
 	ax1.plot(freq_resid,int_resid,color = 'red',label='residual')
 	
-	ax2.legend()
-	ax1.legend()
+	ax2.legend(loc='upper right')
+	ax1.legend(loc='upper right')
 	
 	fig.canvas.draw()
 
@@ -3915,7 +3919,7 @@ def gauss_fit(p_array,plot=True,dT_bound=np.inf,v_bound=5.0,dV_bound=0.2,sigma=N
  		
 		with warnings.catch_warnings():
 			warnings.simplefilter('ignore')
-			ax.legend()
+			ax.legend(loc='upper right')
 		fig.canvas.draw()		
 	
 	print('Gaussian Fit Results to {} Lines' .format(len(p_array)))
@@ -3994,7 +3998,7 @@ def jy_to_k(bmaj,bmin,freq):
 		
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
-		ax.legend()
+		ax.legend(loc='upper right')
 	fig.canvas.draw()
 	
 #k_to_jy converts the current observations from K to Jy/beam, given a beam size bmaj and bmin in arcseconds, and a center frequency in GHz.  This assumes the beam size is constant over the entire range; so if you've loaded in observations from multiple cubes that have different sizes, it's not going to be completely accurate.  It would be better to load in one cube at a time, covert it, and write it back out. 
@@ -4037,7 +4041,7 @@ def k_to_jy(bmaj,bmin,freq,sim=False):
 		
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
-		ax.legend()
+		ax.legend(loc='upper right')
 	fig.canvas.draw()	
 
 #load_freqs will plot lines that are provided not from a standard spcat catalog, but rather just a set of frequencies.  The user can specify either a manual array OR a catalog file containing a single column of frequencies (not both), as well as an optional intensity for the lines.
@@ -4098,7 +4102,7 @@ def load_freqs(man_freqs='',peak=1.0,vlsr=vlsr,dV=dV):
 
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
-		ax.legend()
+		ax.legend(loc='upper right')
 	fig.canvas.draw()						
 
 #use_steps and use_lines will swap between drawing lines between points or steps between points as the default for all graphs.  Will update the graph for the obs immediately; molecules will need to be resimulated/re-recalled/re-overplotted/etc.
@@ -4123,7 +4127,7 @@ def use_steps():
 	
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
-		ax.legend()
+		ax.legend(loc='upper right')
 	fig.canvas.draw()	
 	
 def use_lines():
@@ -4146,7 +4150,7 @@ def use_lines():
 	
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
-		ax.legend()
+		ax.legend(loc='upper right')
 	fig.canvas.draw()		
 
 #baseline will subtract a polynomial baseline from the spectrum of whatever order is entered as an array.  So, for example, to subtract zeroth order baseline with a static offset of 2.5, issue baseline(2.5) or baseline([2.5]).  To subtract a line of y = mx + b, issue baseline([b,m]).  To go for a larger polynomial, y = ax^3 + bx^2 + cx + d, issue baseline([d,c,b,a]).
@@ -4184,7 +4188,7 @@ def baseline(constants):
 	
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
-		ax.legend()
+		ax.legend(loc='upper right')
 	fig.canvas.draw()				
 	
 # find peaks in the intensity array more than 3 sigma (optionally adjustable) and return the indices of those peaks as well as the measured RMS	
@@ -4439,7 +4443,7 @@ def plot_peaks(frequency,intensity,peak_indices,rms,freq_mask=None,int_mask=None
 	
 	ax.scatter(freq_peaks,int_peaks,color='red',marker='x',label='peaks',zorder=25)
 	
-	ax.legend()
+	ax.legend(loc='upper right')
 	fig.canvas.draw()		
 
 def find_nearest(array,value):		
@@ -5713,7 +5717,7 @@ def update():
 		
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore')
-		ax.legend()
+		ax.legend(loc='upper right')
 	fig.canvas.draw()
 	
 	save_results('last.results')
@@ -7540,13 +7544,13 @@ def load_mm1():
 
 	global tbg_range,tbg_type,tbg_params,planck,synth_beam,T,dV,vlsr,C
 
-	read_obs('/Users/Brett/Dropbox/Observations/ALMA/NGC6334I/spectra/mm1/mm1_fullspec.npz')
+	read_obs('/Users/Brett/Dropbox/Observational_Data/NGC6334I/alma/mm1/i/ngc6334i_MM1_i.txt')
 	
-	tbg_range = [[130000,132500],[143500,146000],[251000,252500],[266000,266600],[270400,271000],[279000,283000],[290000,295000],[302400,306100],[336000,340000],[348000,352000],[682000,690000],[698400,706000],[873500,881500],[890000,898000]]
+	tbg_range = [[130000,132500],[143500,146000],[251000,252500],[266000,266600],[270400,271000],[279000,283000],[290000,295000],[302400,306100],[336000,340000],[348000,352000],[635000,690000],[698400,706000],[873500,881500],[890000,898000]]
 
 	tbg_type = 'constant'
 
-	tbg_params = [11.25,11.25,27.4,27.4,27.4,26.94,28.16,35.0,31.28,31.28,38.5,41.38,35.9,35.9]
+	tbg_params = [11.25,11.25,27.4,27.4,27.4,26.94,28.16,35.0,31.28,31.28,43.0,41.38,35.9,35.9]
 
 	planck = True
 
@@ -7583,6 +7587,28 @@ def load_tmc1():
 	res *= 2
 	
 	tbg_type = 'constant'
+	
+#load_tmc1_II() loads GOTHAM phase II.
+
+def load_tmc1_II():
+
+	global T,dV,vlsr,source_size,res,tbg_type
+
+	read_obs('/Users/Brett/Dropbox/Observations/GBT/GOTHAM_Reduction/spectra/tmc1_spectra.npz')
+	
+	T = 8
+
+	dV = 0.15
+
+	vlsr = 5.82
+	
+	source_size = 30
+
+	autoset_limits()
+	
+	res *= 2
+	
+	tbg_type = 'constant'	
 	
 #load_primos_cold() loads PRIMOS for absorption
 
